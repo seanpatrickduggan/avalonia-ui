@@ -1,0 +1,46 @@
+
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:FileProcessor.UI.ViewModels"
+             xmlns:materialIcons="using:Material.Icons.Avalonia"
+             x:Class="FileProcessor.UI.Views.FileProcessorView"
+             mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="300"
+             x:DataType="vm:FileProcessorViewModel">
+  <StackPanel Spacing="20" Margin="20">
+    <TextBlock Text="File Processor" FontSize="24" HorizontalAlignment="Center" FontWeight="Bold"/>
+    
+    <Border BorderBrush="{DynamicResource SystemControlForegroundBaseMediumBrush}" 
+            BorderThickness="1" 
+            CornerRadius="8" 
+            Padding="20">
+      <StackPanel Spacing="15">
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="10">
+          <materialIcons:MaterialIcon Kind="FolderOpen" VerticalAlignment="Center"/>
+          <TextBlock Text="Process files in SampleFiles directory" 
+                     FontSize="16" 
+                     VerticalAlignment="Center"/>
+        </StackPanel>
+        
+        <Button Content="Process Files" 
+                Command="{Binding ProcessFilesCommand}" 
+                HorizontalAlignment="Center"
+                Padding="20,10"
+                FontSize="16">
+          <Button.Content>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <materialIcons:MaterialIcon Kind="Play" VerticalAlignment="Center"/>
+              <TextBlock Text="Process Files" VerticalAlignment="Center"/>
+            </StackPanel>
+          </Button.Content>
+        </Button>
+        
+        <TextBlock Text="{Binding ProcessingResult}" 
+                   HorizontalAlignment="Center" 
+                   TextWrapping="Wrap"
+                   FontStyle="Italic"/>
+      </StackPanel>
+    </Border>
+  </StackPanel>
+</UserControl>

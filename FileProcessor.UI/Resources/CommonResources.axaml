@@ -1,0 +1,29 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    
+    <!-- Common Colors -->
+    <Color x:Key="PrimaryColor">#2196F3</Color>
+    <Color x:Key="SecondaryColor">#FF9800</Color>
+    <Color x:Key="SuccessColor">#4CAF50</Color>
+    <Color x:Key="ErrorColor">#F44336</Color>
+    <Color x:Key="WarningColor">#FF9800</Color>
+    
+    <!-- Common Brushes -->
+    <SolidColorBrush x:Key="PrimaryBrush" Color="{StaticResource PrimaryColor}" />
+    <SolidColorBrush x:Key="SecondaryBrush" Color="{StaticResource SecondaryColor}" />
+    <SolidColorBrush x:Key="SuccessBrush" Color="{StaticResource SuccessColor}" />
+    <SolidColorBrush x:Key="ErrorBrush" Color="{StaticResource ErrorColor}" />
+    <SolidColorBrush x:Key="WarningBrush" Color="{StaticResource WarningColor}" />
+    
+    <!-- Common Thicknesses -->
+    <Thickness x:Key="SmallMargin">4</Thickness>
+    <Thickness x:Key="MediumMargin">8</Thickness>
+    <Thickness x:Key="LargeMargin">16</Thickness>
+    
+    <!-- Common Font Sizes -->
+    <x:Double x:Key="SmallFontSize">12</x:Double>
+    <x:Double x:Key="MediumFontSize">14</x:Double>
+    <x:Double x:Key="LargeFontSize">18</x:Double>
+    <x:Double x:Key="ExtraLargeFontSize">24</x:Double>
+    
+</ResourceDictionary>

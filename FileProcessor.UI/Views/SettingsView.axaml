@@ -1,0 +1,54 @@
+
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:FileProcessor.UI.ViewModels"
+             xmlns:materialIcons="using:Material.Icons.Avalonia"
+             x:Class="FileProcessor.UI.Views.SettingsView"
+             mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="300"
+             x:DataType="vm:SettingsViewModel">
+  <StackPanel Spacing="20" Margin="20">
+    <TextBlock Text="Settings" FontSize="24" HorizontalAlignment="Center" FontWeight="Bold"/>
+    
+    <Border BorderBrush="{DynamicResource SystemControlForegroundBaseMediumBrush}" 
+            BorderThickness="1" 
+            CornerRadius="8" 
+            Padding="20">
+      <StackPanel Spacing="15">
+        <TextBlock Text="Appearance" FontSize="18" FontWeight="SemiBold"/>
+        
+        <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
+          <materialIcons:MaterialIcon Grid.Column="0" 
+                                      Kind="Brightness6"
+                                      VerticalAlignment="Center" 
+                                      Margin="0,0,10,0"/>
+          <TextBlock Grid.Column="1" 
+                     Text="Dark Mode" 
+                     VerticalAlignment="Center" 
+                     FontSize="16"/>
+          <ToggleSwitch Grid.Column="2" 
+                        IsChecked="{Binding IsDarkMode}" 
+                        VerticalAlignment="Center"/>
+        </Grid>
+        
+        <TextBlock Text="Toggle between light and dark themes for the application" 
+                   FontSize="12" 
+                   Opacity="0.7" 
+                   TextWrapping="Wrap"/>
+      </StackPanel>
+    </Border>
+    
+    <Border BorderBrush="{DynamicResource SystemControlForegroundBaseMediumBrush}" 
+            BorderThickness="1" 
+            CornerRadius="8" 
+            Padding="20">
+      <StackPanel Spacing="10">
+        <TextBlock Text="About" FontSize="18" FontWeight="SemiBold"/>
+        <TextBlock Text="Fileonia - File Processing Application" FontSize="14"/>
+        <TextBlock Text="Version 1.0.0" FontSize="12" Opacity="0.7"/>
+        <TextBlock Text="Built with Avalonia UI and .NET 8" FontSize="12" Opacity="0.7"/>
+      </StackPanel>
+    </Border>
+  </StackPanel>
+</UserControl>

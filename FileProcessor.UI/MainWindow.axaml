@@ -1,0 +1,74 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:views="using:FileProcessor.UI.Views"
+        xmlns:vm="using:FileProcessor.UI.ViewModels"
+        xmlns:materialIcons="using:Material.Icons.Avalonia"
+        x:Class="FileProcessor.UI.MainWindow"
+        mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="600"
+        Name="window"
+        Icon="/Assets/avalonia-logo.ico"
+        Title="FileProcessor.UI"
+        x:DataType="vm:MainWindowViewModel">
+
+    <Window.Styles>
+        <Style Selector="Button.nav-button">
+            <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundBaseLowBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseHighBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseMediumLowBrush}" />
+            <Setter Property="BorderThickness" Value="0,1,1,1" />
+        </Style>
+        <Style Selector="Button.nav-button.selected">
+            <Setter Property="Background" Value="{DynamicResource SystemControlHighlightAccentBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource SystemControlHighlightAltBaseHighBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemControlHighlightAccentBrush}" />
+            <Setter Property="BorderThickness" Value="4,1,1,1" />
+        </Style>
+        <Style Selector="Button.nav-button:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundBaseMediumLowBrush}" />
+        </Style>
+        <Style Selector="Button.nav-button.selected:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SystemControlHighlightAccentBrush}" />
+        </Style>
+    </Window.Styles>
+
+    <Design.DataContext>
+        <vm:MainWindowViewModel/>
+    </Design.DataContext>
+
+    <Grid ColumnDefinitions="200,*">
+
+        <!-- Left Navigation Pane -->
+        <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" Background="{DynamicResource SystemControlBackgroundChromeMediumBrush}">
+            <ItemsControl ItemsSource="{Binding NavigationItems}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Button Command="{Binding #window.DataContext.NavigateCommand}" 
+                                CommandParameter="{Binding ViewModel}" 
+                                HorizontalAlignment="Stretch" 
+                                Height="40" 
+                                Margin="0,0,0,5"
+                                Classes="nav-button"
+                                Classes.selected="{Binding IsSelected}">
+                            <Button.Content>
+                                <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Left" VerticalAlignment="Center">
+                                    <materialIcons:MaterialIcon Kind="{Binding Icon}" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button.Content>
+                        </Button>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+        <!-- Main Content Area -->
+        <Border Grid.Column="1" 
+                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}" 
+                CornerRadius="8" 
+                Margin="10">
+            <ContentControl Content="{Binding CurrentPage}" Margin="10"/>
+        </Border>
+    </Grid>
+</Window>
