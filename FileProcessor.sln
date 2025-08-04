@@ -7,8 +7,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FileProcessor.UI", "FilePro
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FileProcessor.Core", "FileProcessor.Core\FileProcessor.Core.csproj", "{57F409C6-E460-47B3-9519-6A10E2703116}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FileProcessor.Generator", "FileProcessor.Generator\FileProcessor.Generator.csproj", "{5F19FA32-3F7B-4ABA-9B22-AADA34863E2E}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -26,9 +24,5 @@ Global
 		{57F409C6-E460-47B3-9519-6A10E2703116}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{57F409C6-E460-47B3-9519-6A10E2703116}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{57F409C6-E460-47B3-9519-6A10E2703116}.Release|Any CPU.Build.0 = Release|Any CPU
-		{5F19FA32-3F7B-4ABA-9B22-AADA34863E2E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{5F19FA32-3F7B-4ABA-9B22-AADA34863E2E}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{5F19FA32-3F7B-4ABA-9B22-AADA34863E2E}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{5F19FA32-3F7B-4ABA-9B22-AADA34863E2E}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

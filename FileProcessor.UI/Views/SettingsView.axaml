@@ -11,6 +11,204 @@
   <StackPanel Spacing="20" Margin="20">
     <TextBlock Text="Settings" FontSize="24" HorizontalAlignment="Center" FontWeight="Bold"/>
     
+    <!-- Workspace Configuration -->
+    <Border BorderBrush="{DynamicResource SystemControlForegroundBaseMediumBrush}" 
+            BorderThickness="1" 
+            CornerRadius="8" 
+            Padding="20">
+      <StackPanel Spacing="15">
+        <TextBlock Text="Workspace Configuration" FontSize="18" FontWeight="SemiBold"/>
+        
+        <!-- Current Workspace Display -->
+        <Grid ColumnDefinitions="Auto,*" VerticalAlignment="Center" Margin="0,0,0,10">
+          <materialIcons:MaterialIcon Grid.Column="0" 
+                                      Kind="Folder"
+                                      VerticalAlignment="Center" 
+                                      Margin="0,0,10,0"/>
+          <StackPanel Grid.Column="1">
+            <TextBlock Text="Current Workspace:" FontSize="12" Opacity="0.7"/>
+            <TextBlock Text="{Binding WorkspaceDirectory}" 
+                       FontWeight="Medium"
+                       FontSize="14"
+                       TextWrapping="Wrap"/>
+          </StackPanel>
+        </Grid>
+        
+        <!-- Directory Structure -->
+        <StackPanel Spacing="8" IsVisible="{Binding HasValidWorkspace}">
+          <TextBlock Text="Directory Structure:" FontSize="12" Opacity="0.7"/>
+          <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" Margin="15,0,0,0">
+            <materialIcons:MaterialIcon Grid.Row="0" Grid.Column="0" 
+                                        Kind="FolderOpen" Width="14" Height="14"
+                                        VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding InputDirectory}" FontSize="12"/>
+            
+            <materialIcons:MaterialIcon Grid.Row="1" Grid.Column="0" 
+                                        Kind="FolderOpen" Width="14" Height="14"
+                                        VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding ProcessedDirectory}" FontSize="12"/>
+          </Grid>
+        </StackPanel>
+        
+        <!-- Workspace Actions -->
+        <StackPanel Spacing="15">
+          <!-- Add New Workspace -->
+          <Border BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                  BorderThickness="1"
+                  CornerRadius="4"
+                  Padding="15">
+            <StackPanel Spacing="10">
+              <TextBlock Text="Add New Workspace" FontWeight="SemiBold" FontSize="14"/>
+              
+              <StackPanel Spacing="8">
+                <TextBlock Text="Workspace Path:" FontSize="12"/>
+                <TextBox Text="{Binding NewWorkspacePath}" 
+                         Watermark="Enter or paste workspace path (e.g., C:\MyWorkspace)"
+                         Width="400"
+                         HorizontalAlignment="Left"/>
+              </StackPanel>
+              
+              <StackPanel Spacing="8">
+                <TextBlock Text="Display Name (optional):" FontSize="12"/>
+                <TextBox Text="{Binding NewWorkspaceName}" 
+                         Watermark="Enter a friendly name for this workspace"
+                         Width="400"
+                         HorizontalAlignment="Left"/>
+              </StackPanel>
+              
+              <Button Command="{Binding AddWorkspaceCommand}"
+                      HorizontalAlignment="Left">
+                <StackPanel Orientation="Horizontal" Spacing="5">
+                  <materialIcons:MaterialIcon Kind="Add" Width="16" Height="16"/>
+                  <TextBlock Text="Add Workspace"/>
+                </StackPanel>
+              </Button>
+            </StackPanel>
+          </Border>
+          
+          <!-- Existing Workspaces -->
+          <StackPanel Spacing="10" IsVisible="{Binding Workspaces.Count}">
+            <TextBlock Text="Existing Workspaces:" FontWeight="SemiBold" FontSize="14"/>
+            
+            <ItemsControl ItemsSource="{Binding Workspaces}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Border BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                          BorderThickness="1"
+                          CornerRadius="4"
+                          Padding="10"
+                          Margin="0,2">
+                    <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                      <RadioButton Grid.Column="0" 
+                                   IsChecked="{Binding IsActive}"
+                                   Command="{Binding $parent[UserControl].DataContext.SetActiveWorkspaceCommand}"
+                                   CommandParameter="{Binding}"
+                                   Margin="0,0,10,0"/>
+                      
+                      <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Name}" FontWeight="Medium" FontSize="13"/>
+                        <TextBlock Text="{Binding Path}" FontSize="11" Opacity="0.7"/>
+                        <TextBlock Text="{Binding CreatedDate, StringFormat='Created: {0:yyyy-MM-dd}'}" 
+                                   FontSize="10" Opacity="0.5"/>
+                      </StackPanel>
+                      
+                      <Button Grid.Column="2" 
+                              Command="{Binding $parent[UserControl].DataContext.OpenWorkspaceInExplorerCommand}"
+                              Background="Transparent"
+                              BorderThickness="0"
+                              Padding="8"
+                              Margin="5,0"
+                              ToolTip.Tip="Open in Explorer">
+                        <materialIcons:MaterialIcon Kind="Launch" Width="14" Height="14"/>
+                      </Button>
+                      
+                      <Button Grid.Column="3" 
+                              Command="{Binding $parent[UserControl].DataContext.RemoveWorkspaceCommand}"
+                              CommandParameter="{Binding}"
+                              Background="Transparent"
+                              BorderThickness="0"
+                              Padding="8"
+                              ToolTip.Tip="Remove Workspace">
+                        <materialIcons:MaterialIcon Kind="Delete" Width="14" Height="14"/>
+                      </Button>
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </StackPanel>
+        
+        <TextBlock Text="The workspace contains 'input' and 'processed' folders for organizing your files." 
+                   FontSize="11" 
+                   Opacity="0.7" 
+                   TextWrapping="Wrap"/>
+      </StackPanel>
+    </Border>
+    
+    <!-- Processing Settings -->
+    <Border BorderBrush="{DynamicResource SystemControlForegroundBaseMediumBrush}" 
+            BorderThickness="1" 
+            CornerRadius="8" 
+            Padding="20">
+      <StackPanel Spacing="15">
+        <TextBlock Text="Performance Settings" FontSize="18" FontWeight="SemiBold"/>
+        
+        <StackPanel Spacing="10">
+          <Grid ColumnDefinitions="Auto,*" VerticalAlignment="Center" Margin="0,0,0,5">
+            <materialIcons:MaterialIcon Grid.Column="0" 
+                                        Kind="Settings"
+                                        VerticalAlignment="Center" 
+                                        Margin="0,0,10,0"/>
+            <TextBlock Grid.Column="1" 
+                       Text="CPU Cores to Spare During Processing" 
+                       VerticalAlignment="Center" 
+                       FontSize="16"/>
+          </Grid>
+          
+          <Grid ColumnDefinitions="*,Auto,Auto" Margin="25,0,0,0">
+            <Slider Grid.Column="0"
+                    Minimum="0"
+                    Maximum="{Binding MaxCores}"
+                    Value="{Binding CoreSpareCount}"
+                    TickFrequency="1"
+                    IsSnapToTickEnabled="True"
+                    Margin="0,0,15,0"/>
+            <TextBlock Grid.Column="1" 
+                       Text="{Binding CoreSpareCount}" 
+                       VerticalAlignment="Center"
+                       FontWeight="SemiBold"
+                       Margin="0,0,10,0"
+                       MinWidth="20"
+                       HorizontalAlignment="Center"/>
+            <TextBlock Grid.Column="2" 
+                       Text="cores spared" 
+                       VerticalAlignment="Center"
+                       FontSize="12"
+                       Opacity="0.7"/>
+          </Grid>
+          
+          <Grid ColumnDefinitions="Auto,*" Margin="25,5,0,0">
+            <TextBlock Grid.Column="0" 
+                       Text="Available for processing: " 
+                       FontSize="12" 
+                       Opacity="0.7"/>
+            <TextBlock Grid.Column="1" 
+                       Text="{Binding AvailableCores, StringFormat='{}{0} cores'}" 
+                       FontSize="12" 
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource SystemAccentColor}"/>
+          </Grid>
+        </StackPanel>
+        
+        <TextBlock Text="Spare cores to keep your system responsive during file processing. Higher values = slower processing but better system responsiveness." 
+                   FontSize="11" 
+                   Opacity="0.7" 
+                   TextWrapping="Wrap"/>
+      </StackPanel>
+    </Border>
+    
+    <!-- Appearance Settings -->
     <Border BorderBrush="{DynamicResource SystemControlForegroundBaseMediumBrush}" 
             BorderThickness="1" 
             CornerRadius="8" 
@@ -39,6 +237,25 @@
       </StackPanel>
     </Border>
     
+    <!-- Status Display -->
+    <Border Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
+            CornerRadius="4" 
+            Padding="15">
+      <Grid ColumnDefinitions="Auto,*">
+        <materialIcons:MaterialIcon Grid.Column="0" 
+                                    Kind="Info" 
+                                    Width="16" 
+                                    Height="16" 
+                                    VerticalAlignment="Center"
+                                    Margin="0,0,10,0"/>
+        <TextBlock Grid.Column="1" 
+                   Text="{Binding StatusMessage}"
+                   VerticalAlignment="Center"
+                   FontSize="12"/>
+      </Grid>
+    </Border>
+    
+    <!-- About Section -->
     <Border BorderBrush="{DynamicResource SystemControlForegroundBaseMediumBrush}" 
             BorderThickness="1" 
             CornerRadius="8" 

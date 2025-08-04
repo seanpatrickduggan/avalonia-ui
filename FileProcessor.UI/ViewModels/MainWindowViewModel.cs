@@ -19,6 +19,7 @@ namespace FileProcessor.UI.ViewModels
             NavigationItems = new ObservableCollection<NavigationItemViewModel>
             {
                 new NavigationItemViewModel("File Processor", Material.Icons.MaterialIconKind.FolderOpen, new FileProcessorViewModel()),
+                new NavigationItemViewModel("File Converter", Material.Icons.MaterialIconKind.Cached, new FileConverterViewModel()),
                 new NavigationItemViewModel("File Generator", Material.Icons.MaterialIconKind.FilePlus, new FileGeneratorViewModel()),
                 new NavigationItemViewModel("Settings", Material.Icons.MaterialIconKind.Cog, new SettingsViewModel()),
             };

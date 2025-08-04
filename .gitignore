@@ -64,3 +64,8 @@ pids
 *.pid
 *.seed
 *.pid.lock
+
+
+# Sample files
+SampleFiles/*
+FileProcessorWorkspace/*

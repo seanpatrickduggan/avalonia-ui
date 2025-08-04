@@ -1,0 +1,467 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:FileProcessor.UI.ViewModels"
+             xmlns:materialIcons="using:Material.Icons.Avalonia"
+             xmlns:converters="using:FileProcessor.UI.Converters"
+             x:Class="FileProcessor.UI.Views.FileConverterView"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
+             x:DataType="vm:FileConverterViewModel">
+
+  <Grid RowDefinitions="Auto,*,Auto,Auto" Margin="20">
+    
+    <!-- Header -->
+    <StackPanel Grid.Row="0" Spacing="10" Margin="0,0,0,20">
+      <TextBlock Text="File Converter" FontSize="24" FontWeight="Bold" HorizontalAlignment="Center"/>
+      <TextBlock Text="Convert text files to JSON format with intelligent timestamp-based processing" 
+                 FontSize="14" Opacity="0.7" HorizontalAlignment="Center"/>
+      
+      <!-- Loading Progress -->
+      <Border BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+              BorderThickness="1"
+              CornerRadius="5"
+              Padding="15"
+              IsVisible="{Binding IsLoadingFiles}">
+        <StackPanel Spacing="10">
+          <TextBlock Text="Loading Files" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+          <ProgressBar Value="{Binding LoadingProgress}" 
+                       Maximum="100"
+                       Height="6"/>
+          <TextBlock Text="{Binding LoadingProgressText}" 
+                     HorizontalAlignment="Center"
+                     FontSize="12"
+                     Opacity="0.8"/>
+        </StackPanel>
+      </Border>
+    </StackPanel>
+
+    <!-- File List Section -->
+    <Border Grid.Row="1" BorderBrush="{DynamicResource SystemControlForegroundBaseMediumBrush}" 
+            BorderThickness="1" CornerRadius="4" Padding="10">
+      <Grid RowDefinitions="Auto,Auto,*">
+        
+        <!-- Workspace Selection -->
+        <Border Grid.Row="0" 
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                BorderThickness="1"
+                CornerRadius="4"
+                Padding="15"
+                Margin="0,0,0,10">
+          <StackPanel Spacing="10">
+            <TextBlock Text="Select Workspaces to Check" FontWeight="SemiBold" FontSize="14"/>
+            
+            <Grid ColumnDefinitions="*,Auto,Auto">
+              <!-- Show message when no workspaces available -->
+              <TextBlock Grid.Column="0" 
+                         Text="No workspaces configured. Please add workspaces in Settings first."
+                         FontStyle="Italic"
+                         Opacity="0.7"
+                         VerticalAlignment="Center"
+                         IsVisible="{Binding !AvailableWorkspaces.Count}"/>
+              
+              <!-- Show workspace list when workspaces are available -->
+              <ScrollViewer Grid.Column="0" 
+                            MaxHeight="120" 
+                            VerticalScrollBarVisibility="Auto"
+                            IsVisible="{Binding AvailableWorkspaces.Count}">
+                <ItemsControl ItemsSource="{Binding AvailableWorkspaces}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}" 
+                                Content="{Binding Workspace.Name}"
+                                Margin="0,2"/>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+              
+              <Button Grid.Column="1" 
+                      Command="{Binding SelectAllWorkspacesCommand}"
+                      Content="Select All"
+                      IsEnabled="{Binding AvailableWorkspaces.Count}"
+                      Margin="10,0,5,0"
+                      Padding="8,4"/>
+              
+              <Button Grid.Column="2" 
+                      Command="{Binding ClearWorkspaceSelectionCommand}"
+                      Content="Clear"
+                      IsEnabled="{Binding AvailableWorkspaces.Count}"
+                      Margin="0"
+                      Padding="8,4"/>
+            </Grid>
+            
+            <Button Command="{Binding CheckFilesCommand}"
+                    IsEnabled="{Binding CanCheckFilesEnabled}"
+                    Classes="accent"
+                    HorizontalAlignment="Left">
+              <StackPanel Orientation="Horizontal" Spacing="5">
+                <materialIcons:MaterialIcon Kind="Search" Width="16" Height="16"/>
+                <TextBlock Text="Check Files from Selected Workspaces"/>
+              </StackPanel>
+            </Button>
+          </StackPanel>
+        </Border>
+        
+        <!-- Controls Header -->
+        <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,0,0,10">
+          <CheckBox Grid.Column="0" 
+                    IsChecked="{Binding SelectAll}"
+                    Command="{Binding ToggleSelectAllCommand}"
+                    Content="Select All"/>
+          
+          <StackPanel Grid.Column="1" 
+                      Orientation="Horizontal" 
+                      VerticalAlignment="Center" 
+                      Margin="20,0,0,0"
+                      Spacing="15">
+            <TextBlock Text="{Binding Files.Count, StringFormat='Total: {0} files'}"
+                       VerticalAlignment="Center"/>
+            <TextBlock Text="{Binding SelectedFileCount, StringFormat='Selected: {0}'}"
+                       VerticalAlignment="Center"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource SystemAccentColor}"/>
+          </StackPanel>
+          
+          <Button Grid.Column="2" 
+                  Command="{Binding ResetStatusCommand}"
+                  Margin="5,0">
+            <StackPanel Orientation="Horizontal" Spacing="5">
+              <materialIcons:MaterialIcon Kind="Restore" Width="16" Height="16"/>
+              <TextBlock Text="Reset"/>
+            </StackPanel>
+          </Button>
+          
+          <Button Grid.Column="3" 
+                  Command="{Binding ProcessSelectedFilesCommand}"
+                  IsEnabled="{Binding !IsProcessing}"
+                  Classes="accent">
+            <StackPanel Orientation="Horizontal" Spacing="5">
+              <materialIcons:MaterialIcon Kind="PlayArrow" Width="16" Height="16"/>
+              <TextBlock Text="Convert Selected"/>
+            </StackPanel>
+          </Button>
+        </Grid>
+
+        <!-- File List -->
+        <ScrollViewer Grid.Row="2" 
+                      VerticalScrollBarVisibility="Visible"
+                      HorizontalScrollBarVisibility="Disabled"
+                      AllowAutoHide="False">
+          <ScrollViewer.Styles>
+            <Style Selector="ScrollViewer /template/ ScrollBar:vertical">
+              <Setter Property="AllowAutoHide" Value="False"/>
+              <Setter Property="Width" Value="18"/>
+            </Style>
+          </ScrollViewer.Styles>
+          <Grid>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- Table Header -->
+            <Border Grid.Row="0" 
+                    Background="{DynamicResource SystemControlBackgroundBaseMediumBrush}"
+                    BorderBrush="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                    BorderThickness="0,0,0,2"
+                    Padding="2,2">
+              <Grid ColumnDefinitions="40,200*,100*,140*,80*,100*">
+                <TextBlock Grid.Column="0" 
+                           Text="✓" 
+                           FontWeight="Bold" 
+                           FontSize="13"
+                           VerticalAlignment="Center"
+                           HorizontalAlignment="Center"
+                           Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}"/>
+                
+                <!-- Sortable File Name Header -->
+                <Button Grid.Column="1" 
+                        Command="{Binding SortFilesCommand}"
+                        CommandParameter="filename"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Padding="2,0"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Left">
+                  <StackPanel Orientation="Horizontal" Spacing="3">
+                    <TextBlock Text="File Name" FontWeight="Bold" FontSize="13" VerticalAlignment="Center"
+                               Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}"/>
+                    <TextBlock FontSize="10" VerticalAlignment="Center" Opacity="0.7"
+                               Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}">
+                      <TextBlock.Text>
+                        <MultiBinding Converter="{x:Static converters:SortIndicatorConverter.Instance}" ConverterParameter="filename">
+                          <Binding Path="SortColumn"/>
+                          <Binding Path="SortAscending"/>
+                        </MultiBinding>
+                      </TextBlock.Text>
+                    </TextBlock>
+                  </StackPanel>
+                </Button>
+                
+                <!-- Sortable Size Header -->
+                <Button Grid.Column="2" 
+                        Command="{Binding SortFilesCommand}"
+                        CommandParameter="filesize"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Padding="2,0"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Left">
+                  <StackPanel Orientation="Horizontal" Spacing="3">
+                    <TextBlock Text="Size" FontWeight="Bold" FontSize="13" VerticalAlignment="Center"
+                               Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}"/>
+                    <TextBlock FontSize="10" VerticalAlignment="Center" Opacity="0.7"
+                               Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}">
+                      <TextBlock.Text>
+                        <MultiBinding Converter="{x:Static converters:SortIndicatorConverter.Instance}" ConverterParameter="filesize">
+                          <Binding Path="SortColumn"/>
+                          <Binding Path="SortAscending"/>
+                        </MultiBinding>
+                      </TextBlock.Text>
+                    </TextBlock>
+                  </StackPanel>
+                </Button>
+                
+                <!-- Sortable Last Modified Header -->
+                <Button Grid.Column="3" 
+                        Command="{Binding SortFilesCommand}"
+                        CommandParameter="lastmodified"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Padding="2,0"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Left">
+                  <StackPanel Orientation="Horizontal" Spacing="3">
+                    <TextBlock Text="Last Modified" FontWeight="Bold" FontSize="13" VerticalAlignment="Center"
+                               Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}"/>
+                    <TextBlock FontSize="10" VerticalAlignment="Center" Opacity="0.7"
+                               Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}">
+                      <TextBlock.Text>
+                        <MultiBinding Converter="{x:Static converters:SortIndicatorConverter.Instance}" ConverterParameter="lastmodified">
+                          <Binding Path="SortColumn"/>
+                          <Binding Path="SortAscending"/>
+                        </MultiBinding>
+                      </TextBlock.Text>
+                    </TextBlock>
+                  </StackPanel>
+                </Button>
+                
+                <!-- Sortable Status Header -->
+                <Button Grid.Column="4" 
+                        Command="{Binding SortFilesCommand}"
+                        CommandParameter="status"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Padding="2,0"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Left">
+                  <StackPanel Orientation="Horizontal" Spacing="3">
+                    <TextBlock Text="Status" FontWeight="Bold" FontSize="13" VerticalAlignment="Center"
+                               Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}"/>
+                    <TextBlock FontSize="10" VerticalAlignment="Center" Opacity="0.7"
+                               Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}">
+                      <TextBlock.Text>
+                        <MultiBinding Converter="{x:Static converters:SortIndicatorConverter.Instance}" ConverterParameter="status">
+                          <Binding Path="SortColumn"/>
+                          <Binding Path="SortAscending"/>
+                        </MultiBinding>
+                      </TextBlock.Text>
+                    </TextBlock>
+                  </StackPanel>
+                </Button>
+                
+                <!-- Sortable Workspace Header -->
+                <Button Grid.Column="5" 
+                        Command="{Binding SortFilesCommand}"
+                        CommandParameter="workspace"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Padding="2,0"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Left">
+                  <StackPanel Orientation="Horizontal" Spacing="3">
+                    <TextBlock Text="Workspace" FontWeight="Bold" FontSize="13" VerticalAlignment="Center"
+                               Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}"/>
+                    <TextBlock FontSize="10" VerticalAlignment="Center" Opacity="0.7"
+                               Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}">
+                      <TextBlock.Text>
+                        <MultiBinding Converter="{x:Static converters:SortIndicatorConverter.Instance}" ConverterParameter="workspace">
+                          <Binding Path="SortColumn"/>
+                          <Binding Path="SortAscending"/>
+                        </MultiBinding>
+                      </TextBlock.Text>
+                    </TextBlock>
+                  </StackPanel>
+                </Button>
+              </Grid>
+            </Border>
+
+            <!-- Compact Table Body -->
+            <ListBox Grid.Row="1" 
+                     ItemsSource="{Binding Files}"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     SelectionMode="Multiple"
+                     Padding="0">
+              <ListBox.Styles>
+                <Style Selector="ListBoxItem">
+                  <Setter Property="Padding" Value="0"/>
+                  <Setter Property="Margin" Value="0"/>
+                </Style>
+              </ListBox.Styles>
+              <ListBox.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <VirtualizingStackPanel/>
+                </ItemsPanelTemplate>
+              </ListBox.ItemsPanel>
+              <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:FileItemViewModel">
+                  <Border BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                          BorderThickness="0" 
+                          Padding="0"
+                          Margin="0"
+                          MinHeight="16"
+                          Background="{Binding IsSelected, Converter={x:Static converters:BooleanToSelectionBrushConverter.Instance}}">
+                    <Border.Styles>
+                      <Style Selector="Border:pointerover">
+                        <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundListLowBrush}"/>
+                      </Style>
+                    </Border.Styles>
+
+                    <Grid ColumnDefinitions="40,200*,100*,140*,80*,100*" Margin="0">
+                      
+                      <!-- Checkbox Column -->
+                      <CheckBox Grid.Column="0" 
+                                IsChecked="{Binding IsSelected}"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Center"
+                                Margin="0"
+                                Padding="0"/>
+                      
+                      <!-- File Name Column -->
+                      <TextBlock Grid.Column="1" 
+                                 Text="{Binding FileName}" 
+                                 FontWeight="Medium"
+                                 FontSize="13"
+                                 VerticalAlignment="Center" 
+                                 Margin="4,0,2,0"/>
+                      
+                      <!-- File Size Column -->
+                      <TextBlock Grid.Column="2" 
+                                 Text="{Binding FileSize}"
+                                 VerticalAlignment="Center"
+                                 FontSize="13"
+                                 Margin="2,0"/>
+                      
+                      <!-- Last Modified Column -->
+                      <TextBlock Grid.Column="3" 
+                                 Text="{Binding LastModified}"
+                                 VerticalAlignment="Center"
+                                 FontSize="13"
+                                 Margin="2,0"/>
+
+                      <!-- Status Column -->
+                      <TextBlock Grid.Column="4" 
+                                 Text="{Binding Status}" 
+                                 FontSize="13"
+                                 FontWeight="Medium"
+                                 Foreground="{Binding StatusColor}"
+                                 VerticalAlignment="Center" 
+                                 Margin="2,0"/>
+                      
+                      <!-- Workspace Column -->
+                      <TextBlock Grid.Column="5" 
+                                 Text="{Binding WorkspaceName}"
+                                 VerticalAlignment="Center"
+                                 FontSize="13"
+                                 FontWeight="Medium"
+                                 Margin="2,0"/>
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+          </Grid>
+        </ScrollViewer>
+      </Grid>
+    </Border>
+
+    <!-- Progress Section -->
+    <Border Grid.Row="2" 
+            IsVisible="{Binding IsProcessing}"
+            Background="{DynamicResource SystemControlForegroundBaseLowBrush}"
+            CornerRadius="4" 
+            Padding="15" 
+            Margin="0,15,0,0">
+      <StackPanel Spacing="10">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Grid.Column="0"
+                     Text="{Binding ProgressText}" 
+                     FontWeight="Medium"
+                     HorizontalAlignment="Center"
+                     VerticalAlignment="Center"/>
+          <Button Grid.Column="1"
+                  Command="{Binding CancelProcessingCommand}"
+                  Content="Cancel"
+                  Classes="danger"
+                  Padding="10,5"/>
+        </Grid>
+        <ProgressBar Value="{Binding ProgressValue}" 
+                     Maximum="100"
+                     Height="8"
+                     Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"/>
+      </StackPanel>
+    </Border>
+
+    <!-- Check Progress Section -->
+    <Border Grid.Row="2" 
+            IsVisible="{Binding IsCheckingFiles}"
+            Background="{DynamicResource SystemControlHighlightBaseLowBrush}"
+            CornerRadius="4" 
+            Padding="15" 
+            Margin="0,15,0,0">
+      <StackPanel Spacing="10">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Grid.Column="0"
+                     Text="{Binding CheckProgressText}" 
+                     FontWeight="Medium"
+                     HorizontalAlignment="Center"
+                     VerticalAlignment="Center"/>
+          <Button Grid.Column="1"
+                  Command="{Binding CancelCheckCommand}"
+                  Content="Cancel"
+                  Classes="danger"
+                  Padding="10,5"/>
+        </Grid>
+        <ProgressBar IsIndeterminate="True"
+                     Height="8"
+                     Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"/>
+      </StackPanel>
+    </Border>
+
+    <!-- Status Bar -->
+    <Border Grid.Row="3" 
+            Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
+            CornerRadius="4" 
+            Padding="10" 
+            Margin="0,15,0,0">
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        <materialIcons:MaterialIcon Grid.Column="0" 
+                                    Kind="Info" 
+                                    Width="16" 
+                                    Height="16" 
+                                    VerticalAlignment="Center"
+                                    Margin="0,0,8,0"/>
+        <TextBlock Grid.Column="1" 
+                   Text="{Binding ProgressText}"
+                   VerticalAlignment="Center"/>
+        <TextBlock Grid.Column="2" 
+                   Text="{Binding SelectedFileCount, StringFormat='Selected: {0}'}"
+                   VerticalAlignment="Center"
+                   FontSize="12"
+                   Opacity="0.7"/>
+      </Grid>
+    </Border>
+  </Grid>
+</UserControl>
