@@ -1,0 +1,93 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:FileProcessor.UI.ViewModels"
+        xmlns:conv="using:FileProcessor.UI.Converters"
+        xmlns:logging="using:FileProcessor.Core.Logging"
+        x:Class="FileProcessor.UI.Views.LogViewerWindow"
+        Title="Log Viewer" Width="1100" Height="750"
+        mc:Ignorable="d">
+  <Window.DataContext>
+    <vm:LogViewerWindowViewModel />
+  </Window.DataContext>
+  <Window.Resources>
+    <conv:BoolToExpandGlyphConverter x:Key="BoolToExpandGlyphConverter" />
+  </Window.Resources>
+  <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="6" Margin="12">
+    <!-- Header -->
+    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+      <TextBlock Text="Run Log:" VerticalAlignment="Center"/>
+      <TextBox Text="{Binding LogFilePath}" Width="560" IsReadOnly="True" FontWeight="Bold" Classes="monospace"/>
+      <Button Content="Copy" Click="CopyPath_Click"/>
+      <CheckBox Content="Tail" IsChecked="{Binding Tail}" Margin="12,0,0,0"/>
+    </StackPanel>
+    <!-- Filters (row 1) -->
+    <WrapPanel Grid.Row="1" VerticalAlignment="Center">
+      <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,0,10,0">
+        <CheckBox Content="Trace" IsChecked="{Binding ShowTrace}"/>
+        <CheckBox Content="Debug" IsChecked="{Binding ShowDebug}"/>
+        <CheckBox Content="Info" IsChecked="{Binding ShowInfo}"/>
+        <CheckBox Content="Warn" IsChecked="{Binding ShowWarning}"/>
+        <CheckBox Content="Error" IsChecked="{Binding ShowError}"/>
+        <CheckBox Content="Crit" IsChecked="{Binding ShowCritical}"/>
+      </StackPanel>
+      <ComboBox Width="150" ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory}" PlaceholderText="Category"/>
+      <ComboBox Width="150" ItemsSource="{Binding Subcategories}" SelectedItem="{Binding SelectedSubcategory}" PlaceholderText="Subcategory"/>
+      <TextBox Width="260" Watermark="Search..." Text="{Binding FilterText, UpdateSourceTrigger=PropertyChanged}"/>
+    </WrapPanel>
+    <!-- Expand/Collapse buttons on their own line (row 2) -->
+    <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8">
+      <Button Content="Expand All" Command="{Binding ExpandAllCommand}"/>
+      <Button Content="Collapse All" Command="{Binding CollapseAllCommand}"/>
+    </StackPanel>
+    <!-- Grouped and expandable list now in row 3 -->
+    <Border Grid.Row="3" BorderThickness="1" CornerRadius="4" Padding="4">
+      <ScrollViewer>
+        <ItemsControl ItemsSource="{Binding Groups}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:LogGroupViewModel">
+              <StackPanel Margin="0,0,0,6">
+                <Border Background="#222" CornerRadius="4" Padding="6" Margin="0,0,0,2">
+                  <DockPanel>
+                    <Button Width="24" Height="24" Command="{Binding ToggleCommand}" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" FontWeight="Bold" FontSize="16" Content="{Binding IsExpanded, Converter={StaticResource BoolToExpandGlyphConverter}}"/>
+                    <TextBlock Margin="6,0,0,0" VerticalAlignment="Center" FontWeight="Bold">
+                      <Run Text="{Binding Category}"/>
+                      <Run Text="/"/>
+                      <Run Text="{Binding Subcategory}"/>
+                      <Run Text="  "/>
+                      <Run Text="{Binding Count}"/>
+                      <Run Text=" entries"/>
+                      <Run Text="  ["/>
+                      <Run Text="{Binding HighestSeverity}"/>
+                      <Run Text="]"/>
+                      <Run Text="  "/>
+                      <Run Text="{Binding SeveritySummary}"/>
+                    </TextBlock>
+                  </DockPanel>
+                </Border>
+                <ItemsControl ItemsSource="{Binding Entries}" IsVisible="{Binding IsExpanded}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="logging:ItemLogEntry">
+                      <Border Margin="4,0" Padding="2" Background="#1b1b1b" CornerRadius="3">
+                        <TextBox FontFamily="monospace" FontSize="13" BorderThickness="0" Background="Transparent" IsReadOnly="True" TextWrapping="Wrap" Padding="0">
+                          <TextBox.Text>
+                            <MultiBinding StringFormat="{}{0:HH:mm:ss.fff} | {1} | {2}">
+                              <Binding Path="TsUtc"/>
+                              <Binding Path="Level"/>
+                              <Binding Path="Message"/>
+                            </MultiBinding>
+                          </TextBox.Text>
+                        </TextBox>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+    </Border>
+  </Grid>
+</Window>

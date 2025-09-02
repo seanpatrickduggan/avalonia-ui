@@ -4,17 +4,44 @@ using Avalonia.Markup.Xaml;
 using Avalonia.Styling;
 using FileProcessor.UI.ViewModels;
 using FileProcessor.Core;
+using Serilog;
+using System;
+using FileProcessor.Core.Logging;
+using System.IO;
+using FileProcessor.UI.Services;
 
 namespace FileProcessor.UI;
 
 public partial class App : Application
 {
+    public static string RunId { get; } = $"{DateTime.UtcNow:yyyyMMdd_HHmmss}_{Guid.NewGuid():N}"; // new per-run id
+    private string? _logFilePath; // store path
+
     public override void Initialize()
     {
-        AvaloniaXamlLoader.Load(this);
-        
+        ConfigureLogging();
+        LoggingService.Initialize(Log.Logger, RunId, _logFilePath!); // initialize logging helpers with path
+        AvaloniaXamlLoader.Load(this); // keep loader
+
         // Set initial theme to Dark
         RequestedThemeVariant = ThemeVariant.Dark;
+    }
+
+    private void ConfigureLogging()
+    {
+        var logsDir = Path.Combine(AppContext.BaseDirectory, "logs");
+        Directory.CreateDirectory(logsDir);
+        var logPath = Path.Combine(logsDir, $"run-{RunId}.jsonl");
+        _logFilePath = logPath; // save
+        Log.Logger = new LoggerConfiguration()
+            .Enrich.WithProperty("app", "FileProcessor")
+            .Enrich.WithProperty("run", RunId)
+            .MinimumLevel.Debug()
+            .WriteTo.Async(a => a.File(
+                path: logPath,
+                shared: false,
+                formatter: new Serilog.Formatting.Json.JsonFormatter(renderMessage: true)))
+            .CreateLogger();
     }
 
     public override void OnFrameworkInitializationCompleted()

@@ -13,6 +13,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using Avalonia.Threading;
+using FileProcessor.UI.Services; // added
+using FileProcessor.Core.Logging; // added for scoping
 
 namespace FileProcessor.UI.ViewModels;
 
@@ -87,6 +89,10 @@ public partial class FileConverterViewModel : ViewModelBase
 
     public ObservableCollection<FileItemViewModel> Files { get; } = new();
     public ObservableCollection<WorkspaceSelectionViewModel> AvailableWorkspaces { get; } = new();
+
+    // Track per-item highest severity (thread-safe) for future batch viewer use
+    private readonly ConcurrentDictionary<string, LogSeverity> _highestSeverityByFile = new();
+    private readonly ConcurrentBag<ItemLogResult> _conversionItemLogResults = new();
 
     public FileConverterViewModel()
     {
@@ -292,6 +298,9 @@ public partial class FileConverterViewModel : ViewModelBase
             return;
         }
 
+        // Start a fresh log run for this batch
+        LoggingService.StartNewRun();
+
         // Cancel any existing processing operation
         _processingCancellationTokenSource?.Cancel();
         _processingCancellationTokenSource = new CancellationTokenSource();
@@ -318,44 +327,93 @@ public partial class FileConverterViewModel : ViewModelBase
                 Parallel.ForEach(selectedFiles, parallelOptions, file =>
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    
-                    // Update file status to processing on UI thread (fire and forget)
-                    _ = Dispatcher.UIThread.InvokeAsync(() =>
-                    {
-                        file.UpdateStatus("Processing");
-                        ProgressText = $"Converting {file.FileName}...";
-                    });
-                    
+
+                    // Start per-file scoped logging
+                    using var scope = LoggingService.ItemLogFactory.Start(file.FileName);
+                    var sw = System.Diagnostics.Stopwatch.StartNew();
+                    FileInfo? inputInfo = null;
+                    string? outputFilePath = null;
                     try
                     {
-                        // Always perform conversion for selected files (no up-to-date check)
-                        var outputFileName = Path.GetFileNameWithoutExtension(file.FilePath) + "_converted.json";
-                        var outputFilePath = Path.Combine(OutputDirectory, outputFileName);
-                        
-                        // Perform conversion (synchronous version for parallel processing)
-                        var success = _fileProcessingService.ConvertFile(file.FilePath, OutputDirectory);
-                        
+                        // Update UI status
                         _ = Dispatcher.UIThread.InvokeAsync(() =>
                         {
-                            if (success)
+                            file.UpdateStatus("Processing");
+                            ProgressText = $"Converting {file.FileName}...";
+                        });
+
+                        inputInfo = new FileInfo(file.FilePath);
+                        var outputFileName = Path.GetFileNameWithoutExtension(file.FilePath) + "_converted.json";
+                        outputFilePath = Path.Combine(OutputDirectory, outputFileName);
+
+                        scope.Info("Starting conversion", new
+                        {
+                            input = file.FilePath,
+                            output = outputFilePath,
+                            sizeBytes = inputInfo.Length,
+                            lastWriteUtc = inputInfo.LastWriteTimeUtc
+                        }, category: "convert");
+
+                        // Read content for metrics (so we can log before conversion write)
+                        string inputContent = File.ReadAllText(file.FilePath);
+                        var lineCount = inputContent.Split('\n').Length;
+                        var wordCount = inputContent.Split(new[] { ' ', '\n', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length;
+                        var charCount = inputContent.Length;
+
+                        scope.Debug("Read input file", new
+                        {
+                            lineCount,
+                            wordCount,
+                            charCount,
+                            preview = inputContent.Length > 120 ? inputContent[..120] + "..." : inputContent
+                        }, category: "convert");
+
+                        // Execute conversion (existing service call)
+                        var success = _fileProcessingService.ConvertFile(file.FilePath, OutputDirectory);
+
+                        sw.Stop();
+
+                        if (success)
+                        {
+                            long outputSize = outputFilePath != null && File.Exists(outputFilePath) ? new FileInfo(outputFilePath).Length : 0;
+                            scope.Info("Conversion succeeded", new
+                            {
+                                durationMs = sw.ElapsedMilliseconds,
+                                outputFile = outputFilePath,
+                                outputSize,
+                                lineCount,
+                                wordCount,
+                                charCount
+                            }, category: "convert");
+
+                            _ = Dispatcher.UIThread.InvokeAsync(() =>
                             {
                                 file.UpdateStatus("Completed");
-                                file.ConversionNote = $"→ {outputFileName}";
-                            }
-                            else
+                                file.ConversionNote = $"→ {Path.GetFileName(outputFilePath)}";
+                            });
+                            Interlocked.Increment(ref converted);
+                        }
+                        else
+                        {
+                            sw.Stop();
+                            scope.Error("Conversion failed", new { durationMs = sw.ElapsedMilliseconds }, category: "convert");
+                            _ = Dispatcher.UIThread.InvokeAsync(() =>
                             {
                                 file.UpdateStatus("Error");
                                 file.ConversionNote = "Conversion failed";
-                            }
-                        });
-                        
-                        if (success)
-                            Interlocked.Increment(ref converted);
-                        else
+                            });
                             Interlocked.Increment(ref errors);
+                        }
                     }
-                    catch
+                    catch (Exception ex)
                     {
+                        sw.Stop();
+                        scope.Error("Unhandled exception", new
+                        {
+                            ex.Message,
+                            ex.StackTrace,
+                            durationMs = sw.ElapsedMilliseconds
+                        }, category: "convert");
                         _ = Dispatcher.UIThread.InvokeAsync(() =>
                         {
                             file.UpdateStatus("Error");
@@ -363,11 +421,18 @@ public partial class FileConverterViewModel : ViewModelBase
                         });
                         Interlocked.Increment(ref errors);
                     }
-                    
-                    // Update progress
+                    finally
+                    {
+                        // Record highest severity for batch-level summary needs
+                        var highest = scope.Result.HighestSeverity;
+                        _highestSeverityByFile.AddOrUpdate(file.FileName, highest, (_, existing) => existing >= highest ? existing : highest);
+                        _conversionItemLogResults.Add(scope.Result);
+                    }
+
+                    // Progress update
                     var currentCount = Interlocked.Increment(ref processedCount);
                     var progressPercentage = (int)((double)currentCount / selectedFiles.Length * 100);
-                    
+
                     _ = Dispatcher.UIThread.InvokeAsync(() =>
                     {
                         ProgressValue = progressPercentage;
@@ -390,6 +455,7 @@ public partial class FileConverterViewModel : ViewModelBase
             IsProcessing = false;
             _processingCancellationTokenSource?.Dispose();
             _processingCancellationTokenSource = null;
+            LoggingService.ShowLogViewer(); // open viewer after batch
         }
     }
 

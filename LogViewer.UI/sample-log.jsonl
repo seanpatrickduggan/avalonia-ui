@@ -1,0 +1,8 @@
+{"Timestamp":"2025-09-01T12:00:00.0000000Z","Level":"Information","MessageTemplate":"Starting run {RunId}","RenderedMessage":"Starting run 12345","Properties":{"RunId":"12345"}}
+{"Timestamp":"2025-09-01T12:00:00.1000000Z","Level":"Information","MessageTemplate":"Processing file {File}","RenderedMessage":"Processing file input1.xml","Properties":{"File":"input1.xml","cat":"proc","sub":"start"}}
+{"Timestamp":"2025-09-01T12:00:00.2000000Z","Level":"Debug","MessageTemplate":"Parsed element {Element}","RenderedMessage":"Parsed element nodeA","Properties":{"Element":"nodeA","cat":"parse","sub":"element"}}
+{"Timestamp":"2025-09-01T12:00:00.2500000Z","Level":"Warning","MessageTemplate":"Deprecated attribute {Attr}","RenderedMessage":"Deprecated attribute legacyFlag","Properties":{"Attr":"legacyFlag","cat":"parse","sub":"attr"}}
+{"Timestamp":"2025-09-01T12:00:00.3000000Z","Level":"Error","MessageTemplate":"Failed to resolve ref {Ref}","RenderedMessage":"Failed to resolve ref ref_42","Properties":{"Ref":"ref_42","cat":"resolve","sub":"missing"}}
+{"Timestamp":"2025-09-01T12:00:00.4000000Z","Level":"Information","MessageTemplate":"Processing file {File}","RenderedMessage":"Processing file input2.xml","Properties":{"File":"input2.xml","cat":"proc","sub":"start"}}
+{"Timestamp":"2025-09-01T12:00:00.5000000Z","Level":"Information","MessageTemplate":"Completed file {File}","RenderedMessage":"Completed file input1.xml","Properties":{"File":"input1.xml","cat":"proc","sub":"end"}}
+{"Timestamp":"2025-09-01T12:00:00.6000000Z","Level":"Fatal","MessageTemplate":"Critical failure {Error}","RenderedMessage":"Critical failure OutOfMemory","Properties":{"Error":"OutOfMemory","cat":"fatal","sub":"crash"}}

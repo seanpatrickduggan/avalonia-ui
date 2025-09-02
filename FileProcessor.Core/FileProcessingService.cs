@@ -1,9 +1,18 @@
 using FileProcessor.Core.Interfaces;
+using FileProcessor.Core.Logging; // added
+using Serilog; // added
 
 namespace FileProcessor.Core;
 
 public class FileProcessingService : IFileProcessingService
 {
+    private readonly IItemLogFactory? _itemLogFactory; // added optional factory
+
+    public FileProcessingService(IItemLogFactory? itemLogFactory = null)
+    {
+        _itemLogFactory = itemLogFactory;
+    }
+
     public string ProcessFiles(string directoryPath)
     {
         if (!Directory.Exists(directoryPath))
@@ -22,9 +31,51 @@ public class FileProcessingService : IFileProcessingService
         {
             var fileInfo = new FileInfo(file);
             totalSize += fileInfo.Length;
+            if (_itemLogFactory != null)
+            {
+                using var scope = _itemLogFactory.Start(Path.GetFileName(file));
+                scope.Log(LogSeverity.Info, "TXT", "Scan", $"Found file {fileInfo.Name}", new { fileInfo.Length });
+                if (fileInfo.Length == 0)
+                {
+                    scope.Log(LogSeverity.Warning, "TXT", "Validation", "File is empty");
+                }
+            }
         }
 
         return $"Processed {files.Length} files. Total size: {totalSize} bytes.";
+    }
+
+    // New method returning item log results
+    public (string summary, IReadOnlyList<ItemLogResult> itemLogs) ProcessFilesWithLogs(string directoryPath)
+    {
+        if (!Directory.Exists(directoryPath))
+        {
+            return ("Directory not found.", Array.Empty<ItemLogResult>());
+        }
+        var files = Directory.GetFiles(directoryPath, "*.txt");
+        if (files.Length == 0)
+        {
+            return ("No .txt files found to process.", Array.Empty<ItemLogResult>());
+        }
+        var results = new List<ItemLogResult>(files.Length);
+        long totalSize = 0;
+        foreach (var file in files)
+        {
+            var fileInfo = new FileInfo(file);
+            totalSize += fileInfo.Length;
+            if (_itemLogFactory != null)
+            {
+                using var scope = _itemLogFactory.Start(Path.GetFileName(file));
+                scope.Log(LogSeverity.Info, "TXT", "Scan", $"Found file {fileInfo.Name}", new { fileInfo.Length });
+                if (fileInfo.Length == 0)
+                {
+                    scope.Log(LogSeverity.Warning, "TXT", "Validation", "File is empty");
+                }
+                results.Add(scope.Result);
+            }
+        }
+        var summary = $"Processed {files.Length} files. Total size: {totalSize} bytes.";
+        return (summary, results);
     }
 
     public async Task<int> ProcessFilesAsync(string directoryPath)

@@ -3,6 +3,13 @@ using CommunityToolkit.Mvvm.Input;
 
 using FileProcessor.Core;
 using System.IO;
+using FileProcessor.UI.Services;
+using FileProcessor.Core.Logging;
+using System.Collections.ObjectModel;
+using FileProcessor.UI.Views;
+using Avalonia.Controls;
+using Avalonia;
+using Avalonia.Controls.ApplicationLifetimes;
 
 namespace FileProcessor.UI.ViewModels
 {
@@ -14,17 +21,49 @@ namespace FileProcessor.UI.ViewModels
         [ObservableProperty]
         private string _processingResult = "Ready to process files.";
 
+        [ObservableProperty]
+        private ObservableCollection<ItemLogResult> _lastItemLogs = new(); // expose results
+
+        [ObservableProperty]
+        private ItemLogResult? _selectedItemLog; // selected summary
+
+        [ObservableProperty]
+        private ObservableCollection<ItemLogEntry> _selectedEntries = new(); // entries of selected item
+
         public FileProcessorViewModel()
         {
-            _processingService = new FileProcessingService();
+            _processingService = new FileProcessingService(LoggingService.ItemLogFactory);
             _sampleFilesDirectory = Path.Combine(Directory.GetCurrentDirectory(), "SampleFiles");
         }
 
         [RelayCommand]
         private void ProcessFiles()
         {
+            LastItemLogs.Clear();
             ProcessingResult = "Processing...";
-            ProcessingResult = _processingService.ProcessFiles(_sampleFilesDirectory);
+            try
+            {
+                var (summary, logs) = _processingService.ProcessFilesWithLogs(_sampleFilesDirectory);
+                ProcessingResult = summary;
+                foreach (var log in logs)
+                {
+                    LastItemLogs.Add(log);
+                }
+            }
+            finally
+            {
+                LoggingService.ShowLogViewer();
+            }
+        }
+
+        partial void OnSelectedItemLogChanged(ItemLogResult? value)
+        {
+            SelectedEntries.Clear();
+            if (value == null) return;
+            foreach (var e in value.Entries)
+            {
+                SelectedEntries.Add(e);
+            }
         }
     }
 }
