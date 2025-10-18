@@ -8,13 +8,13 @@ using Serilog;
 using System;
 using FileProcessor.Core.Logging;
 using System.IO;
-using FileProcessor.UI.Services;
+using FileProcessor.Infrastructure.Logging;
 
 namespace FileProcessor.UI;
 
 public partial class App : Application
 {
-    public static string RunId { get; } = $"{DateTime.UtcNow:yyyyMMdd_HHmmss}_{Guid.NewGuid():N}"; // new per-run id
+    public static string RunId { get; } = $"session_{DateTime.UtcNow:yyyyMMdd_HHmmss}"; // new per-session id
     private string? _logFilePath; // store path
 
     public override void Initialize()
@@ -40,7 +40,7 @@ public partial class App : Application
             .WriteTo.Async(a => a.File(
                 path: logPath,
                 shared: false,
-                formatter: new Serilog.Formatting.Json.JsonFormatter(renderMessage: true)))
+                formatter: new Serilog.Formatting.Compact.CompactJsonFormatter()))
             .CreateLogger();
     }
 

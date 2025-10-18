@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 
 using FileProcessor.Core;
 using System.IO;
+using FileProcessor.Infrastructure.Logging;
 using FileProcessor.UI.Services;
 using FileProcessor.Core.Logging;
 using System.Collections.ObjectModel;
@@ -52,7 +53,7 @@ namespace FileProcessor.UI.ViewModels
             }
             finally
             {
-                LoggingService.ShowLogViewer();
+                UILoggingService.ShowLogViewer();
             }
         }
 

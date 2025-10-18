@@ -1,6 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input; // added
-using FileProcessor.UI.Services;
+using FileProcessor.Infrastructure.Logging;
 using System.Collections.ObjectModel;
 using FileProcessor.Core.Logging;
 using System.IO;

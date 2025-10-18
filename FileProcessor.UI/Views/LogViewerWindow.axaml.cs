@@ -2,7 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Avalonia.Input;
-using FileProcessor.UI.Services;
+using FileProcessor.Infrastructure.Logging;
 
 namespace FileProcessor.UI.Views;
 
@@ -28,6 +28,6 @@ public partial class LogViewerWindow : Window
 
     private void StartNewRun_Click(object? sender, RoutedEventArgs e)
     {
-        LoggingService.StartNewRun();
+        LoggingService.StartNewRun("manual");
     }
 }

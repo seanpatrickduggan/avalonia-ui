@@ -13,8 +13,10 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using Avalonia.Threading;
+using FileProcessor.Infrastructure.Logging;
 using FileProcessor.UI.Services; // added
 using FileProcessor.Core.Logging; // added for scoping
+using Serilog;
 
 namespace FileProcessor.UI.ViewModels;
 
@@ -298,8 +300,8 @@ public partial class FileConverterViewModel : ViewModelBase
             return;
         }
 
-        // Start a fresh log run for this batch
-        LoggingService.StartNewRun();
+        // Start a fresh log run for this batch with descriptive name
+        LoggingService.StartNewRun("conversion");
 
         // Cancel any existing processing operation
         _processingCancellationTokenSource?.Cancel();
@@ -455,7 +457,12 @@ public partial class FileConverterViewModel : ViewModelBase
             IsProcessing = false;
             _processingCancellationTokenSource?.Dispose();
             _processingCancellationTokenSource = null;
-            LoggingService.ShowLogViewer(); // open viewer after batch
+            
+            // Ensure logs are flushed before opening viewer
+            try { Serilog.Log.CloseAndFlush(); } catch { /* ignore */ }
+            
+            // Open viewer to show the conversion run logs
+            UILoggingService.ShowLogViewer(); // open viewer after batch
         }
     }
 

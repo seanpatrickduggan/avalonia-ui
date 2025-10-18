@@ -21,10 +21,12 @@ FileProcessor.sln                 # Solution file
 │   └── Program.cs              # Application startup
 ├── FileProcessor.Core/          # 🔧 Business Logic Library
 │   ├── Interfaces/             # Core business interfaces
+│   ├── Logging/                # Logging contracts and abstractions
 │   ├── FileProcessingService.cs # File processing operations
 │   └── FileGenerationService.cs # File generation operations
-├── FileProcessor.Generator/     # 🛠️ CLI Tool
-│   └── Program.cs              # Console application for file generation
+├── FileProcessor.Infrastructure/ # 🏗️ Cross-Cutting Infrastructure
+│   └── Logging/                # Logging service implementations
+├── LogViewer.UI/               # 🔍 Standalone Log Viewer Application
 └── SampleFiles/                # 📄 Test files for development
 ```
 
@@ -35,8 +37,14 @@ FileProcessor.sln                 # Solution file
 - **Business Layer** (`FileProcessor.Core`): Contains business logic, data processing, and domain operations
 - **Tool Layer** (`FileProcessor.Generator`): Command-line utilities and batch operations
 
-### **2. Dependency Injection Ready**
+### **2. Clean Architecture**
+- **UI Layer** (`FileProcessor.UI`): Handles user interface, data binding, and user interactions
+- **Business Layer** (`FileProcessor.Core`): Contains business logic, data processing, and domain operations  
+- **Infrastructure Layer** (`FileProcessor.Infrastructure`): Cross-cutting concerns like logging, configuration, and external services
+
+### **3. Dependency Injection Ready**
 - All services implement interfaces for testability and flexibility
+- Infrastructure services are shared between UI and CLI applications
 - Services can be easily mocked for unit testing
 - Ready for DI container integration (Microsoft.Extensions.DependencyInjection)
 
