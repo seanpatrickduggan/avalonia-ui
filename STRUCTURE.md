@@ -88,7 +88,10 @@ FileProcessor.sln                 # Solution file
 - **Implementation** (`FileProcessor.Infrastructure.Workspace`):
   - `SqliteWorkspaceDb`: SQLite database operations using Microsoft.Data.Sqlite with WAL mode for concurrent access.
   - `WorkspaceDbService`: Static facade for database lifecycle, session/run management.
-- **Logging Integration** (`FileProcessor.Infrastructure.Logging.WorkspaceRunStructuredLogger`): Dual logging to human-readable JSONL files (via Serilog) and queryable SQLite database for performance.
+- **Logging Integration** (`FileProcessor.Infrastructure.Logging`):
+  - `WorkspaceSqliteSink`: Serilog sink that mirrors all log events to SQLite DB for queryable storage.
+  - `WorkspaceRunStructuredLogger`: Structured logging to Serilog (with DB mirroring handled by sink).
+  - Materialization: `WorkspaceDbService.MaterializeRunLogsAsync` and `MaterializeSessionLogsAsync` export logs to JSONL for portability.
 
 ## 🎯 **Benefits of This Structure**
 
