@@ -4,6 +4,8 @@ using System.IO;
 using FileProcessor.Core.Logging;
 using Serilog;
 using FileProcessor.Infrastructure.Workspace; // added
+using System.Threading.Tasks;
+using Serilog.Core;
 
 namespace FileProcessor.Infrastructure.Logging;
 
@@ -64,11 +66,27 @@ public static class LoggingService
                 path: newPath,
                 shared: false,
                 formatter: new Serilog.Formatting.Compact.CompactJsonFormatter()))
+            .WriteTo.Sink(new WorkspaceSqliteSink())
             .CreateLogger();
         RunLogger = new WorkspaceRunStructuredLogger(_rootLogger); // changed
         ApplyRun(runId, newPath);
 
         // Also start a DB run in the workspace (fire-and-forget for now)
         try { await WorkspaceDbService.StartRunAsync(runType ?? "run", name: runId); } catch { }
+    }
+
+    public static async Task EndCurrentRunAsync(string status = "succeeded")
+    {
+        try
+        {
+            var rid = WorkspaceDbService.CurrentRunId;
+            await WorkspaceDbService.EndRunAsync(status: status);
+            // Materialize this run's logs to JSONL alongside Serilog file for parity
+            if (rid != 0)
+            {
+                try { await WorkspaceDbService.MaterializeRunLogsAsync(rid); } catch { }
+            }
+        }
+        catch { }
     }
 }

@@ -22,10 +22,12 @@ FileProcessor.sln                 # Solution file
 ├── FileProcessor.Core/          # 🔧 Business Logic Library
 │   ├── Interfaces/             # Core business interfaces
 │   ├── Logging/                # Logging contracts and abstractions
+│   ├── Workspace/              # Workspace database abstractions
 │   ├── FileProcessingService.cs # File processing operations
 │   └── FileGenerationService.cs # File generation operations
 ├── FileProcessor.Infrastructure/ # 🏗️ Cross-Cutting Infrastructure
-│   └── Logging/                # Logging service implementations
+│   ├── Logging/                # Logging service implementations
+│   └── Workspace/              # Workspace database implementation
 ├── LogViewer.UI/               # 🔍 Standalone Log Viewer Application
 └── SampleFiles/                # 📄 Test files for development
 ```
@@ -40,7 +42,7 @@ FileProcessor.sln                 # Solution file
 ### **2. Clean Architecture**
 - **UI Layer** (`FileProcessor.UI`): Handles user interface, data binding, and user interactions
 - **Business Layer** (`FileProcessor.Core`): Contains business logic, data processing, and domain operations  
-- **Infrastructure Layer** (`FileProcessor.Infrastructure`): Cross-cutting concerns like logging, configuration, and external services
+- **Infrastructure Layer** (`FileProcessor.Infrastructure`): Cross-cutting concerns like logging, configuration, external services, and workspace database
 
 ### **3. Dependency Injection Ready**
 - All services implement interfaces for testability and flexibility
@@ -75,6 +77,18 @@ FileProcessor.sln                 # Solution file
 - `FileProcessorViewModel`: File processing operations UI
 - `FileGeneratorViewModel`: File generation operations UI
 - `SettingsViewModel`: Application settings and preferences
+
+### **Workspace Database**
+- **Purpose**: SQLite-based workspace store for sessions, runs, items, and logs to enable fast querying and filtering of large log files (e.g., 30k+ entries).
+- **Key Interfaces** (`FileProcessor.Core.Workspace`):
+  - `IWorkspaceDb`: Core database operations (initialize, query logs, group counts)
+  - `IRunStore`: Session and run management
+  - `ILogStore`: Log entry operations
+- **Schema** (`FileProcessor.Infrastructure.Workspace.WorkspaceSchema.sql`): SQLite DDL with tables for `sessions`, `runs`, `items`, and `log_entries`, including indexes for performance.
+- **Implementation** (`FileProcessor.Infrastructure.Workspace`):
+  - `SqliteWorkspaceDb`: SQLite database operations using Microsoft.Data.Sqlite with WAL mode for concurrent access.
+  - `WorkspaceDbService`: Static facade for database lifecycle, session/run management.
+- **Logging Integration** (`FileProcessor.Infrastructure.Logging.WorkspaceRunStructuredLogger`): Dual logging to human-readable JSONL files (via Serilog) and queryable SQLite database for performance.
 
 ## 🎯 **Benefits of This Structure**
 

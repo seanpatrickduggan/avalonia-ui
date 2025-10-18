@@ -200,6 +200,7 @@ public sealed class SqliteWorkspaceDb : IWorkspaceDb
         if (q.FromTsMs is long from) { parts.Add("ts_ms >= $from"); pars.Add(new SqliteParameter("$from", from)); }
         if (q.ToTsMs is long to) { parts.Add("ts_ms <= $to"); pars.Add(new SqliteParameter("$to", to)); }
         if (!string.IsNullOrWhiteSpace(q.TextContains)) { parts.Add("message LIKE $txt"); pars.Add(new SqliteParameter("$txt", "%" + q.TextContains + "%")); }
+        if (q.SessionId is long sid) { parts.Add("session_id=$sid"); pars.Add(new SqliteParameter("$sid", sid)); }
         return parts.Count == 0 ? string.Empty : ("WHERE " + string.Join(" AND ", parts));
     }
 }

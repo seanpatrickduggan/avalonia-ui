@@ -46,6 +46,7 @@ public partial class App : Application
                 path: logPath,
                 shared: false,
                 formatter: new Serilog.Formatting.Compact.CompactJsonFormatter()))
+            .WriteTo.Sink(new WorkspaceSqliteSink())
             .CreateLogger();
     }
 
@@ -80,6 +81,12 @@ public partial class App : Application
         }
         catch { }
 
+        // End active run and materialize logs
+        try { await LoggingService.EndCurrentRunAsync("succeeded"); } catch { }
+        try { await WorkspaceDbService.MaterializeSessionLogsAsync(WorkspaceDbService.SessionId); } catch { }
+
+        // Flush Serilog then shutdown DB
+        try { Serilog.Log.CloseAndFlush(); } catch { }
         try { await WorkspaceDbService.ShutdownAsync(); } catch { }
     }
 }

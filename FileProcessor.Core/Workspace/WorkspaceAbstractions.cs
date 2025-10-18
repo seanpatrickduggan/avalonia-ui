@@ -70,4 +70,5 @@ public sealed record LogQuery(
     int Page = 0,
     int PageSize = 500,
     long? FromTsMs = null,
-    long? ToTsMs = null);
+    long? ToTsMs = null,
+    long? SessionId = null);
