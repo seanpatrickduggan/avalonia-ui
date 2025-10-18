@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using FileProcessor.Core.Logging;
 using Serilog;
@@ -28,11 +29,8 @@ public static class LoggingService
         RunId = runId;
         LogFilePath = logFilePath;
         var options = new ItemLogOptions();
-        Guid runGuid = Guid.Empty;
-        var parts = runId.Split('_');
-        if (parts.Length > 0)
-            Guid.TryParse(parts[^1], out runGuid);
-        ItemLogFactory = new ItemLogFactory(options, RunLogger, () => runGuid, () => null);
+        
+        ItemLogFactory = new ItemLogFactory(options, RunLogger, () => Guid.Empty, () => null);
         LogFileChanged?.Invoke();
     }
 
@@ -42,15 +40,24 @@ public static class LoggingService
         try { Log.CloseAndFlush(); } catch { /* ignore */ }
         var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
         var runId = string.IsNullOrEmpty(runType) 
-            ? $"{timestamp}_{Guid.NewGuid():N}" 
+            ? $"{timestamp}" 
             : $"{runType}_{timestamp}";
-        var logsDir = Path.Combine(AppContext.BaseDirectory, "logs");
+        
+        // Get workspace path from settings
+        var workspacePath = FileProcessor.Core.SettingsService.Instance.WorkspaceDirectory;
+        if (string.IsNullOrWhiteSpace(workspacePath))
+        {
+            throw new InvalidOperationException("No workspace configured. Please configure a workspace before starting a new run.");
+        }
+        
+        var logsDir = Path.Combine(workspacePath, "logs");
         Directory.CreateDirectory(logsDir);
         var newPath = Path.Combine(logsDir, $"run-{runId}.jsonl");
+        
         // Recreate root logger
         _rootLogger = new LoggerConfiguration()
             .Enrich.WithProperty("app", "FileProcessor")
-            .Enrich.WithProperty("run", runId)
+            .Enrich.WithProperty("run", runId) // Use the runId directly
             .MinimumLevel.Debug()
             .WriteTo.Async(a => a.File(
                 path: newPath,

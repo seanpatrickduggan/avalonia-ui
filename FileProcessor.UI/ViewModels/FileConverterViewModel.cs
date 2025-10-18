@@ -695,7 +695,7 @@ public partial class FileConverterViewModel : ViewModelBase
             "filesize" => SortAscending 
                 ? Files.OrderBy(f => GetFileSizeForSorting(f.FileSize)) 
                 : Files.OrderByDescending(f => GetFileSizeForSorting(f.FileSize)),
-            "lastmodified" => SortAscending 
+            "lastModified" => SortAscending 
                 ? Files.OrderBy(f => DateTime.TryParse(f.LastModified, out var date) ? date : DateTime.MinValue) 
                 : Files.OrderByDescending(f => DateTime.TryParse(f.LastModified, out var date) ? date : DateTime.MinValue),
             "status" => SortAscending 

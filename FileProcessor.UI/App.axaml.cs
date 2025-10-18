@@ -29,7 +29,14 @@ public partial class App : Application
 
     private void ConfigureLogging()
     {
-        var logsDir = Path.Combine(AppContext.BaseDirectory, "logs");
+        // Get workspace path from settings
+        var workspacePath = SettingsService.Instance.WorkspaceDirectory;
+        if (string.IsNullOrWhiteSpace(workspacePath))
+        {
+            throw new InvalidOperationException("No workspace configured. Please configure a workspace before starting the application.");
+        }
+
+        var logsDir = Path.Combine(workspacePath, "logs");
         Directory.CreateDirectory(logsDir);
         var logPath = Path.Combine(logsDir, $"run-{RunId}.jsonl");
         _logFilePath = logPath; // save
