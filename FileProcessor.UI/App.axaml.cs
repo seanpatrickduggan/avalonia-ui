@@ -9,6 +9,7 @@ using System;
 using FileProcessor.Core.Logging;
 using System.IO;
 using FileProcessor.Infrastructure.Logging;
+using FileProcessor.Infrastructure.Workspace; // added
 
 namespace FileProcessor.UI;
 
@@ -19,11 +20,8 @@ public partial class App : Application
 
     public override void Initialize()
     {
-        ConfigureLogging();
-        LoggingService.Initialize(Log.Logger, RunId, _logFilePath!); // initialize logging helpers with path
-        AvaloniaXamlLoader.Load(this); // keep loader
-
-        // Set initial theme to Dark
+        AvaloniaXamlLoader.Load(this);
+        // Theme
         RequestedThemeVariant = ThemeVariant.Dark;
     }
 
@@ -53,6 +51,12 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        // Logging + DB after XAML is loaded
+        ConfigureLogging();
+        LoggingService.Initialize(Log.Logger, RunId, _logFilePath!);
+        // Initialize workspace DB in background to avoid blocking UI thread
+        _ = WorkspaceDbService.InitializeAsync();
+
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             desktop.MainWindow = new MainWindow
@@ -74,9 +78,8 @@ public partial class App : Application
         {
             await SettingsService.Instance.SaveSettingsAsync();
         }
-        catch
-        {
-            // Ignore save errors during shutdown
-        }
+        catch { }
+
+        try { await WorkspaceDbService.ShutdownAsync(); } catch { }
     }
 }

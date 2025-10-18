@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using FileProcessor.Core.Logging;
 using Serilog;
+using FileProcessor.Infrastructure.Workspace; // added
 
 namespace FileProcessor.Infrastructure.Logging;
 
@@ -20,7 +21,7 @@ public static class LoggingService
     public static void Initialize(ILogger rootLogger, string runId, string logFilePath)
     {
         _rootLogger = rootLogger;
-        RunLogger = new SerilogRunStructuredLogger(rootLogger);
+        RunLogger = new WorkspaceRunStructuredLogger(rootLogger); // changed
         ApplyRun(runId, logFilePath);
     }
 
@@ -34,7 +35,7 @@ public static class LoggingService
         LogFileChanged?.Invoke();
     }
 
-    public static void StartNewRun(string? runType = null)
+    public static async void StartNewRun(string? runType = null)
     {
         // Close existing logger sinks if we own them
         try { Log.CloseAndFlush(); } catch { /* ignore */ }
@@ -64,7 +65,10 @@ public static class LoggingService
                 shared: false,
                 formatter: new Serilog.Formatting.Compact.CompactJsonFormatter()))
             .CreateLogger();
-        RunLogger = new SerilogRunStructuredLogger(_rootLogger);
+        RunLogger = new WorkspaceRunStructuredLogger(_rootLogger); // changed
         ApplyRun(runId, newPath);
+
+        // Also start a DB run in the workspace (fire-and-forget for now)
+        try { await WorkspaceDbService.StartRunAsync(runType ?? "run", name: runId); } catch { }
     }
 }
