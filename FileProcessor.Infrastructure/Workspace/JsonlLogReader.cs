@@ -4,20 +4,23 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using FileProcessor.Core.Workspace;
+using FileProcessor.Core.Abstractions; // add
 
 namespace FileProcessor.Infrastructure.Workspace;
 
 public sealed class JsonlLogReader : ILogReader
 {
     private readonly string _filePath;
-    public JsonlLogReader(string filePath) => _filePath = filePath;
+    private readonly IFileSystem _fs;
+    public JsonlLogReader(string filePath) : this(filePath, new FileProcessor.Infrastructure.Abstractions.SystemFileSystem()) {}
+    public JsonlLogReader(string filePath, IFileSystem fs) { _filePath = filePath; _fs = fs; }
 
     public Task<IReadOnlyList<LogRow>> QueryLogsAsync(LogQuery query, CancellationToken ct = default)
     {
         // naive streaming implementation; filter client-side for now
         var list = new List<LogRow>(query.PageSize);
-        if (!File.Exists(_filePath)) return Task.FromResult<IReadOnlyList<LogRow>>(list);
-        using var fs = new FileStream(_filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        if (!_fs.FileExists(_filePath)) return Task.FromResult<IReadOnlyList<LogRow>>(list);
+        using var fs = _fs.CreateFile(_filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         using var sr = new StreamReader(fs);
         long rowId = 0;
         long offset = query.Page * query.PageSize;
@@ -67,7 +70,7 @@ public sealed class JsonlLogReader : ILogReader
     public Task<IReadOnlyList<LogGroupCount>> QueryGroupCountsAsync(LogQuery query, CancellationToken ct = default)
     {
         // naive pass to compute grouped counts (for small–medium files it's fine)
-        var groups = new Dictionary<(string? cat, string? sub), (int count, int maxLvl)>();
+        var groups = new System.Collections.Generic.Dictionary<(string? cat, string? sub), (int count, int maxLvl)>();
         var rowsTask = QueryLogsAsync(query with { Page = 0, PageSize = int.MaxValue }, ct);
         var rows = rowsTask.GetAwaiter().GetResult();
         foreach (var r in rows)

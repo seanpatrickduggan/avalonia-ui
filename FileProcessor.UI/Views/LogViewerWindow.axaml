@@ -8,9 +8,6 @@
         x:Class="FileProcessor.UI.Views.LogViewerWindow"
         Title="Log Viewer" Width="1100" Height="750"
         mc:Ignorable="d">
-  <Window.DataContext>
-    <vm:LogViewerWindowViewModel />
-  </Window.DataContext>
   <Window.Styles>
     <!-- Make ListBox look non-selectable -->
     <Style Selector="ListBox">

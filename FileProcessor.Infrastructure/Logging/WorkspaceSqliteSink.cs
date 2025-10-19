@@ -3,6 +3,8 @@ using FileProcessor.Core.Workspace;
 using Serilog.Core;
 using Serilog.Events;
 using System.Text.Json;
+using Serilog.Debugging; // debug-only diagnostics
+using System.Threading; // Interlocked
 
 namespace FileProcessor.Infrastructure.Logging;
 
@@ -17,7 +19,21 @@ public interface ILogWriteTarget
 public sealed class WorkspaceSqliteSink : ILogEventSink
 {
     private readonly ILogWriteTarget _target;
-    public WorkspaceSqliteSink(ILogWriteTarget target) => _target = target;
+#if DEBUG
+    private static int s_instanceCount;
+#endif
+
+    public WorkspaceSqliteSink(ILogWriteTarget target)
+    {
+        _target = target ?? throw new ArgumentNullException(nameof(target));
+#if DEBUG
+        var count = Interlocked.Increment(ref s_instanceCount);
+        if (count > 1)
+        {
+            SelfLog.WriteLine("[WorkspaceSqliteSink] Multiple instances created in process: {0}. Ensure only one sink is added to the pipeline.", count);
+        }
+#endif
+    }
 
     public void Emit(LogEvent e)
     {

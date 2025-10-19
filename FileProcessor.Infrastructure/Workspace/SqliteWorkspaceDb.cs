@@ -14,11 +14,19 @@ public sealed class SqliteWorkspaceDb : IWorkspaceDb
 {
     private const int CurrentSchemaVersion = 2; // bump when schema changes
     private SqliteConnection? _conn;
+    private readonly FileProcessor.Core.Abstractions.IFileSystem _fs;
+    private readonly TimeProvider _time;
+
+    public SqliteWorkspaceDb(FileProcessor.Core.Abstractions.IFileSystem fs, TimeProvider time)
+    {
+        _fs = fs;
+        _time = time;
+    }
 
     public async Task InitializeAsync(string dbPath, CancellationToken ct = default)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(dbPath)!);
-        var baseFileExisted = File.Exists(dbPath);
+        _fs.CreateDirectory(Path.GetDirectoryName(dbPath)!);
+        var baseFileExisted = _fs.FileExists(dbPath);
         var cs = new SqliteConnectionStringBuilder
         {
             DataSource = dbPath,
@@ -59,7 +67,7 @@ public sealed class SqliteWorkspaceDb : IWorkspaceDb
         if (!baseFileExisted || !hasSchemaInfo)
         {
             var schemaPathNew = Path.Combine(infraBaseDir, "Workspace", "WorkspaceSchema.sql");
-            var sqlNew = await File.ReadAllTextAsync(schemaPathNew, ct);
+            var sqlNew = await _fs.ReadAllTextAsync(schemaPathNew, ct);
             using (var cmdNew = _conn.CreateCommand())
             {
                 cmdNew.CommandText = sqlNew;
@@ -90,7 +98,7 @@ public sealed class SqliteWorkspaceDb : IWorkspaceDb
         {
             try { await _conn.CloseAsync(); } catch { }
             _conn.Dispose();
-            try { if (File.Exists(dbPath)) File.Delete(dbPath); } catch { /* ignore */ }
+            try { if (_fs.FileExists(dbPath)) _fs.DeleteFile(dbPath); } catch { /* ignore */ }
 
             _conn = new SqliteConnection(cs);
             await _conn.OpenAsync(ct);
@@ -101,7 +109,7 @@ public sealed class SqliteWorkspaceDb : IWorkspaceDb
             }
 
             var schemaPathNew = Path.Combine(infraBaseDir, "Workspace", "WorkspaceSchema.sql");
-            var sqlNew = await File.ReadAllTextAsync(schemaPathNew, ct);
+            var sqlNew = await _fs.ReadAllTextAsync(schemaPathNew, ct);
             using (var cmdNew = _conn.CreateCommand())
             {
                 cmdNew.CommandText = sqlNew;
@@ -124,8 +132,9 @@ public sealed class SqliteWorkspaceDb : IWorkspaceDb
             catch { }
 
             var noticePath = Path.Combine(Path.GetDirectoryName(dbPath)!, "workspace-schema-reset.txt");
+            var tsIso = _time.GetUtcNow().ToString("o");
             var msg = $"Workspace database was recreated due to schema version mismatch (found {existingVer}, expected {CurrentSchemaVersion}). A fresh schema has been applied.";
-            try { await File.WriteAllTextAsync(noticePath, $"{DateTime.UtcNow:o} {msg}\nDB Path: {dbPath}\n", ct); } catch { }
+            try { await _fs.WriteAllTextAsync(noticePath, $"{tsIso} {msg}\nDB Path: {dbPath}\n", ct); } catch { }
             Log.Warning(msg);
             return;
         }
@@ -139,7 +148,7 @@ public sealed class SqliteWorkspaceDb : IWorkspaceDb
         }
 
         var schemaPath = Path.Combine(infraBaseDir, "Workspace", "WorkspaceSchema.sql");
-        var sql = await File.ReadAllTextAsync(schemaPath, ct);
+        var sql = await _fs.ReadAllTextAsync(schemaPath, ct);
         using var cmd = _conn.CreateCommand();
         cmd.CommandText = sql;
         await cmd.ExecuteNonQueryAsync(ct);
@@ -155,7 +164,7 @@ public sealed class SqliteWorkspaceDb : IWorkspaceDb
 
     public void Dispose() => _conn?.Dispose();
 
-    private static long NowMs() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+    private long NowMs() => _time.GetUtcNow().ToUnixTimeMilliseconds();
 
     public async Task<long> StartSessionAsync(string? appVersion = null, string? userName = null, string? hostName = null, CancellationToken ct = default)
     {

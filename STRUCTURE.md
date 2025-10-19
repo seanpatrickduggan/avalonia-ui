@@ -29,6 +29,8 @@ FileProcessor.sln                 # Solution file
 │   ├── Logging/                # Logging service implementations
 │   └── Workspace/              # Workspace database implementation
 ├── LogViewer.UI/               # 🔍 Standalone Log Viewer Application
+├── tests/
+│   └── FileProcessor.Tests/    # ✅ Test project (xUnit)
 └── SampleFiles/                # 📄 Test files for development
 ```
 
@@ -37,7 +39,7 @@ FileProcessor.sln                 # Solution file
 ### **1. Separation of Concerns**
 - **UI Layer** (`FileProcessor.UI`): Handles user interface, data binding, and user interactions
 - **Business Layer** (`FileProcessor.Core`): Contains business logic, data processing, and domain operations
-- **Tool Layer** (`FileProcessor.Generator`): Command-line utilities and batch operations
+- **Infrastructure Layer** (`FileProcessor.Infrastructure`): Cross-cutting concerns like logging, configuration, external services, and workspace database
 
 ### **2. Clean Architecture**
 - **UI Layer** (`FileProcessor.UI`): Handles user interface, data binding, and user interactions
@@ -60,6 +62,25 @@ FileProcessor.sln                 # Solution file
 - Namespace alignment: `FileProcessor.UI.ViewModels`, `FileProcessor.Core.Interfaces`
 - Clear, descriptive folder and file names
 
+## 🧪 Testing Architecture
+
+- Project: `tests/FileProcessor.Tests` using xUnit + FluentAssertions + coverlet for coverage.
+- Time: BCL `TimeProvider` (no custom provider); can use `Microsoft.Extensions.Time.Testing` FakeTimeProvider in tests when needed.
+- File system: Use real `SystemFileSystem` against a per-test temp directory for integration tests. For pure unit tests, optional in-memory `IFileSystem` stub lives in the test project.
+- DI: Tests compose a minimal service provider, overriding `IFileSystem` or `TimeProvider` as needed without touching production code.
+- Scopes:
+  - Unit tests: small, deterministic; prefer fakes/stubs.
+  - Integration tests: exercise `WorkspaceRuntime`, `SqliteWorkspaceDb`, and Serilog sink with a temp workspace.
+- Probes: `IntegrationProbe.VerifyOneEventOneRowAsync` ensures one event → one DB row (guards duplicate sinks/double writes).
+
+Patterns
+- Temp workspace harness creates `input/`, `processed/`, `logs/` under a unique temp folder and cleans up on dispose.
+- Ensure each test uses an isolated workspace and DI container instance.
+- Prefer async tests and CancellationToken with timeouts to avoid hangs.
+
+Tooling
+- xUnit runner; FluentAssertions for readable assertions; coverlet collector for coverage; GitHub Actions-ready.
+
 ## 📦 **Key Components**
 
 ### **Interfaces**
@@ -79,27 +100,18 @@ FileProcessor.sln                 # Solution file
 - `SettingsViewModel`: Application settings and preferences
 
 ### **Workspace Database**
-- **Purpose**: SQLite-based workspace store for sessions, operations, items, and logs to enable fast querying and filtering of large log files (e.g., 30k+ entries).
-- **Key Interfaces** (`FileProcessor.Core.Workspace`):
-  - `IWorkspaceDb`: Core database operations (initialize, query logs, group counts)
-  - `IRunStore`: Session and run management
-  - `ILogStore`: Log entry operations
-- **Schema** (`FileProcessor.Infrastructure.Workspace.WorkspaceSchema.sql`): SQLite DDL with tables for `sessions`, `operations`, `items`, and `log_entries`, including indexes for performance.
-- **Implementation** (`FileProcessor.Infrastructure.Workspace`):
-  - `SqliteWorkspaceDb`: SQLite database operations using Microsoft.Data.Sqlite with WAL mode for concurrent access.
-  - `WorkspaceDbService`: Static facade for database lifecycle, session/run management.
-- **Logging Integration** (`FileProcessor.Infrastructure.Logging`):
-  - `WorkspaceSqliteSink`: Serilog sink that mirrors all log events to SQLite DB for queryable storage.
-  - `WorkspaceRunStructuredLogger`: Structured logging to Serilog (with DB mirroring handled by sink).
-  - Materialization: `WorkspaceDbService.MaterializeOperationLogsAsync` and `MaterializeSessionLogsAsync` export logs to JSONL for portability.
+- Purpose: SQLite-based workspace store for sessions, operations, items, and logs to enable fast querying and filtering of large log files.
+- Key Interfaces (`FileProcessor.Core.Workspace`): `IWorkspaceDb`, `IOperationStore`, `ILogStore`.
+- Implementation (`FileProcessor.Infrastructure.Workspace`): `SqliteWorkspaceDb` (WAL), `WorkspaceRuntime` (bounded channel writer, materialization).
+- Logging Integration (`FileProcessor.Infrastructure.Logging`): `WorkspaceSqliteSink`, `WorkspaceOperationStructuredLogger`.
 
 ## 🎯 **Benefits of This Structure**
 
-1. **✅ Maintainability**: Clear separation makes code easier to understand and modify
-2. **✅ Testability**: Interface-based design enables comprehensive unit testing
-3. **✅ Scalability**: Modular structure supports adding new features and services
-4. **✅ Best Practices**: Follows established .NET and Avalonia UI conventions
-5. **✅ Team Development**: Clear structure helps team members navigate the codebase
+1. ✅ Maintainability: Clear separation makes code easier to understand and modify
+2. ✅ Testability: Interface-based design enables comprehensive unit and integration testing
+3. ✅ Scalability: Modular structure supports adding new features and services
+4. ✅ Best Practices: Follows established .NET and Avalonia UI conventions
+5. ✅ Team Development: Clear structure helps team members navigate the codebase
 
 ## 🚀 **Getting Started**
 
@@ -110,8 +122,8 @@ dotnet build
 # Run the UI application
 dotnet run --project FileProcessor.UI
 
-# Run the CLI generator
-dotnet run --project FileProcessor.Generator
+# Run tests
+dotnet test
 ```
 
 ## 🔧 **Development Guidelines**

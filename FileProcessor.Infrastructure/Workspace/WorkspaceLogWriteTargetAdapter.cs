@@ -3,9 +3,29 @@ using FileProcessor.Core.Workspace;
 
 namespace FileProcessor.Infrastructure.Workspace;
 
-public sealed class WorkspaceLogWriteTargetAdapter : ILogWriteTarget
+public interface ILogAppender
 {
-    public long? SessionIdOrNull => WorkspaceDbService.SessionIdOrNull;
-    public long CurrentOperationId => WorkspaceDbService.CurrentOperationId;
-    public void AppendOrBuffer(LogWrite write) => WorkspaceDbService.AppendOrBuffer(write);
+    System.Threading.Tasks.Task AppendAsync(LogWrite write, System.Threading.CancellationToken ct = default);
+    System.Threading.Tasks.Task FlushAsync(System.Threading.CancellationToken ct = default);
+}
+
+public sealed class WorkspaceLogWriteTarget : ILogWriteTarget
+{
+    private readonly IWorkspaceRuntime _runtime;
+    private readonly ILogAppender _appender;
+
+    public WorkspaceLogWriteTarget(IWorkspaceRuntime runtime, ILogAppender appender)
+    {
+        _runtime = runtime;
+        _appender = appender;
+    }
+
+    public long? SessionIdOrNull => _runtime.SessionId == 0 ? (long?)null : _runtime.SessionId;
+    public long CurrentOperationId => _runtime.CurrentOperationId;
+
+    public void AppendOrBuffer(LogWrite write)
+    {
+        // Append asynchronously via bounded writer on the instance runtime
+        _ = _appender.AppendAsync(write);
+    }
 }

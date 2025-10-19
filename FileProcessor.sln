@@ -6,10 +6,13 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FileProcessor.UI", "FilePro
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FileProcessor.Core", "FileProcessor.Core\FileProcessor.Core.csproj", "{57F409C6-E460-47B3-9519-6A10E2703116}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LogViewer.UI", "LogViewer.UI/LogViewer.UI.csproj", "{8C8F9F8E-ABCD-4B1E-9F1E-1234567890AB}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LogViewer.UI", "LogViewer.UI\LogViewer.UI.csproj", "{8C8F9F8E-ABCD-4B1E-9F1E-1234567890AB}"
 EndProject
-
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FileProcessor.Infrastructure", "FileProcessor.Infrastructure\FileProcessor.Infrastructure.csproj", "{B1B2B3B4-C5C6-4D4E-9F9E-111223334456}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{F9C9FBC8-6BDB-4A12-B0E3-5C9660FD6DE0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FileProcessor.Tests", "tests\FileProcessor.Tests\FileProcessor.Tests.csproj", "{718E1CDC-D587-4B2E-88E9-77F3941B474E}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -32,10 +35,16 @@ Global
 		{8C8F9F8E-ABCD-4B1E-9F1E-1234567890AB}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8C8F9F8E-ABCD-4B1E-9F1E-1234567890AB}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8C8F9F8E-ABCD-4B1E-9F1E-1234567890AB}.Release|Any CPU.Build.0 = Release|Any CPU
-
 		{B1B2B3B4-C5C6-4D4E-9F9E-111223334456}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{B1B2B3B4-C5C6-4D4E-9F9E-111223334456}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B1B2B3B4-C5C6-4D4E-9F9E-111223334456}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B1B2B3B4-C5C6-4D4E-9F9E-111223334456}.Release|Any CPU.Build.0 = Release|Any CPU
+		{718E1CDC-D587-4B2E-88E9-77F3941B474E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{718E1CDC-D587-4B2E-88E9-77F3941B474E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{718E1CDC-D587-4B2E-88E9-77F3941B474E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{718E1CDC-D587-4B2E-88E9-77F3941B474E}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{718E1CDC-D587-4B2E-88E9-77F3941B474E} = {F9C9FBC8-6BDB-4A12-B0E3-5C9660FD6DE0}
 	EndGlobalSection
 EndGlobal

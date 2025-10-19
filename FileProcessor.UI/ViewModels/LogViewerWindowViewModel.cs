@@ -9,15 +9,12 @@ using System;
 using System.Linq;
 using Avalonia.Threading;
 using System.Collections.Generic;
-using System.Text;
-using FileProcessor.UI.Services;
 using FileProcessor.Core.Workspace; // added
-// using FileProcessor.Infrastructure.Workspace; // replaced by IWorkspaceRuntime
 using System.Threading.Tasks; // added for Task
 
 namespace FileProcessor.UI.ViewModels;
 
-public partial class LogViewerWindowViewModel : ObservableObject
+public partial class LogViewerWindowViewModel : ObservableObject, IDisposable
 {
     [ObservableProperty]
     private string _logFilePath = string.Empty;
@@ -75,18 +72,23 @@ public partial class LogViewerWindowViewModel : ObservableObject
     // DB reader state
     private ILogReader? _dbReader;
     private long _lastTsMsDb = 0;
+    private bool _dbQueryInFlight = false;
+    private bool _tailInFlight = false;
 
-    // Injected workspace runtime (via CompositionRoot)
+    // Injected workspace runtime
     private readonly IWorkspaceRuntime _runtime;
+    private readonly IOperationContext _opContext;
+    private readonly ILogReaderFactory _readerFactory;
 
     public IRelayCommand ExpandAllCommand { get; }
     public IRelayCommand CollapseAllCommand { get; }
 
-    public LogViewerWindowViewModel()
+    public LogViewerWindowViewModel(IWorkspaceRuntime runtime, IOperationContext opContext, ILogReaderFactory readerFactory)
     {
-        var op = CompositionRoot.Get<IOperationContext>();
-        LogFilePath = op.LogFilePath;
-        _runtime = CompositionRoot.Get<IWorkspaceRuntime>();
+        _runtime = runtime;
+        _opContext = opContext;
+        _readerFactory = readerFactory;
+        LogFilePath = _opContext.LogFilePath;
         // default to DB if available (current operation/session exists)
         UseDatabase = true;
         InitializeBackend();
@@ -112,6 +114,10 @@ public partial class LogViewerWindowViewModel : ObservableObject
     partial void OnShowCriticalChanged(bool value) => DebounceFilters();
     partial void OnUseDatabaseChanged(bool value)
     {
+        // reset any in-flight work when switching backends
+        _dbReader = null;
+        _dbQueryInFlight = false;
+        _tailInFlight = false;
         InitializeBackend();
     }
 
@@ -130,12 +136,13 @@ public partial class LogViewerWindowViewModel : ObservableObject
         _lastTsMsDb = 0;
         if (UseDatabase)
         {
-            _dbReader = CompositionRoot.Get<ILogReaderFactory>().ForDatabase();
+            _dbReader = _readerFactory.ForDatabase();
             // initial load from DB
             _ = QueryAndAppendDbAsync(initial: true);
         }
         else
         {
+            _dbReader = null;
             // fallback to JSONL file tailing (Serilog compact JSON)
             LoadInitial();
         }
@@ -185,24 +192,33 @@ public partial class LogViewerWindowViewModel : ObservableObject
     private async Task QueryAndAppendDbAsync(bool initial)
     {
         if (_dbReader == null) return;
-        var q = BuildQuery(fromTsMs: _lastTsMsDb + 1);
-        IReadOnlyList<LogRow> rows;
-        try { rows = await _dbReader.QueryLogsAsync(q); } catch { return; }
-        if (rows.Count == 0 && !initial) return;
-        bool added = false;
-        foreach (var r in rows)
+        if (_dbQueryInFlight) return;
+        _dbQueryInFlight = true;
+        try
         {
-            var ts = DateTimeOffset.FromUnixTimeMilliseconds(r.TsMs).UtcDateTime;
-            var sev = (LogSeverity)Math.Clamp(r.Level, 0, 5);
-            var entry = new ItemLogEntry(ts, sev, r.Category ?? string.Empty, r.Subcategory ?? string.Empty, r.Message ?? string.Empty, r.DataJson);
-            _all.Add(entry);
-            if (r.TsMs > _lastTsMsDb) _lastTsMsDb = r.TsMs;
-            added = true;
+            var q = BuildQuery(fromTsMs: _lastTsMsDb + 1);
+            IReadOnlyList<LogRow> rows;
+            try { rows = await _dbReader.QueryLogsAsync(q); } catch { return; }
+            if (rows.Count == 0 && !initial) return;
+            bool added = false;
+            foreach (var r in rows)
+            {
+                var ts = DateTimeOffset.FromUnixTimeMilliseconds(r.TsMs).UtcDateTime;
+                var sev = (LogSeverity)Math.Clamp(r.Level, 0, 5);
+                var entry = new ItemLogEntry(ts, sev, r.Category ?? string.Empty, r.Subcategory ?? string.Empty, r.Message ?? string.Empty, r.DataJson);
+                _all.Add(entry);
+                if (r.TsMs > _lastTsMsDb) _lastTsMsDb = r.TsMs;
+                added = true;
+            }
+            if (added)
+            {
+                RebuildCategoryLists();
+                ApplyFilters();
+            }
         }
-        if (added)
+        finally
         {
-            RebuildCategoryLists();
-            ApplyFilters(autoScroll: true);
+            _dbQueryInFlight = false;
         }
     }
 
@@ -225,33 +241,41 @@ public partial class LogViewerWindowViewModel : ObservableObject
 
     private void TailUpdate()
     {
-        // Detect log file path changes (new operation)
-        var op = CompositionRoot.Get<IOperationContext>();
-        if (!string.Equals(op.LogFilePath, LogFilePath, StringComparison.Ordinal))
+        if (_tailInFlight) return;
+        _tailInFlight = true;
+        try
         {
-            LogFilePath = op.LogFilePath;
-            LoadInitial();
-            return;
-        }
+            // Detect log file path changes (new operation)
+            if (!string.Equals(_opContext.LogFilePath, LogFilePath, StringComparison.Ordinal))
+            {
+                LogFilePath = _opContext.LogFilePath;
+                LoadInitial();
+                return;
+            }
 
-        if (!Tail) return;
-        if (string.IsNullOrEmpty(LogFilePath) || !File.Exists(LogFilePath)) return;
-        var info = new FileInfo(LogFilePath);
-        if (info.Length == _lastLength) return; // no growth
-        using var fs = new FileStream(LogFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-        fs.Seek(_lastLength, SeekOrigin.Begin);
-        using var reader = new StreamReader(fs);
-        string? line;
-        var added = false;
-        while ((line = reader.ReadLine()) != null)
-        {
-            if (ParseAndAdd(line)) added = true;
+            if (!Tail) return;
+            if (string.IsNullOrEmpty(LogFilePath) || !File.Exists(LogFilePath)) return;
+            var info = new FileInfo(LogFilePath);
+            if (info.Length == _lastLength) return; // no growth
+            using var fs = new FileStream(LogFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            fs.Seek(_lastLength, SeekOrigin.Begin);
+            using var reader = new StreamReader(fs);
+            string? line;
+            var added = false;
+            while ((line = reader.ReadLine()) != null)
+            {
+                if (ParseAndAdd(line)) added = true;
+            }
+            _lastLength = fs.Length;
+            if (added)
+            {
+                RebuildCategoryLists();
+                ApplyFilters();
+            }
         }
-        _lastLength = fs.Length;
-        if (added)
+        finally
         {
-            RebuildCategoryLists();
-            ApplyFilters(autoScroll: true);
+            _tailInFlight = false;
         }
     }
 
@@ -400,7 +424,7 @@ public partial class LogViewerWindowViewModel : ObservableObject
             Groups.Add(g);
 
         // Combined text (still available if needed elsewhere)
-        var sb = new StringBuilder(filtered.Count * 80);
+        var sb = new System.Text.StringBuilder(filtered.Count * 80);
         foreach (var e in filtered)
         {
             sb.Append(e.TsUtc.ToString("HH:mm:ss.fff"))
@@ -419,6 +443,12 @@ public partial class LogViewerWindowViewModel : ObservableObject
             sb.Append('\n');
         }
         CombinedText = sb.ToString();
+    }
+
+    public void Dispose()
+    {
+        try { _timer.Stop(); } catch { }
+        try { _filterTimer.Stop(); } catch { }
     }
 }
 
@@ -456,7 +486,7 @@ public partial class LogGroupViewModel : ObservableObject
         int warn = entries.Count(e => e.Level == LogSeverity.Warning);
         int error = entries.Count(e => e.Level == LogSeverity.Error);
         int crit = entries.Count(e => e.Level == LogSeverity.Critical);
-        var parts = new List<string>();
+        var parts = new System.Collections.Generic.List<string>();
         if (trace > 0) parts.Add($"trace {trace}");
         if (debug > 0) parts.Add($"debug {debug}");
         if (info > 0) parts.Add($"info {info}");

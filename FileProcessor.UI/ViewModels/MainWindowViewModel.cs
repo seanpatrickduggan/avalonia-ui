@@ -1,11 +1,9 @@
+using System;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using FileProcessor.UI.Services;
-using Microsoft.Extensions.DependencyInjection;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
-using FileProcessor.Core.Workspace;
 using System.IO;
 
 namespace FileProcessor.UI.ViewModels
@@ -29,14 +27,21 @@ namespace FileProcessor.UI.ViewModels
         [ObservableProperty]
         private string? _workspaceErrorDetails;
 
-        public MainWindowViewModel()
+        // App assigns this to perform centralized initialization
+        public Func<Task>? RetryRequested { get; set; }
+
+        public MainWindowViewModel(
+            FileProcessorViewModel fileProcessorVm,
+            FileConverterViewModel fileConverterVm,
+            FileGeneratorViewModel fileGeneratorVm,
+            SettingsViewModel settingsVm)
         {
             NavigationItems = new ObservableCollection<NavigationItemViewModel>
             {
-                new NavigationItemViewModel("File Processor", Material.Icons.MaterialIconKind.FolderOpen, CompositionRoot.Get<FileProcessorViewModel>()),
-                new NavigationItemViewModel("File Converter", Material.Icons.MaterialIconKind.Cached, CompositionRoot.Get<FileConverterViewModel>()),
-                new NavigationItemViewModel("File Generator", Material.Icons.MaterialIconKind.FilePlus, new FileGeneratorViewModel()),
-                new NavigationItemViewModel("Settings", Material.Icons.MaterialIconKind.Cog, new SettingsViewModel()),
+                new NavigationItemViewModel("File Processor", Material.Icons.MaterialIconKind.FolderOpen, fileProcessorVm),
+                new NavigationItemViewModel("File Converter", Material.Icons.MaterialIconKind.Cached, fileConverterVm),
+                new NavigationItemViewModel("File Generator", Material.Icons.MaterialIconKind.FilePlus, fileGeneratorVm),
+                new NavigationItemViewModel("Settings", Material.Icons.MaterialIconKind.Cog, settingsVm),
             };
 
             CurrentPage = NavigationItems[0].ViewModel;
@@ -44,47 +49,38 @@ namespace FileProcessor.UI.ViewModels
             // Set initial selection
             NavigationItems[0].IsSelected = true;
 
-            // Kick off workspace initialization with health reporting
-            _ = InitializeWorkspaceAsync();
+            // Initial state shown until App reports real status
+            ReportWorkspaceInitializing();
         }
 
-        private async Task InitializeWorkspaceAsync()
+        // Called by App when it starts initializing the workspace
+        public void ReportWorkspaceInitializing()
         {
-            var runtime = CompositionRoot.Get<IWorkspaceRuntime>();
             WorkspaceInitializing = true;
             WorkspaceError = false;
             WorkspaceReady = false;
             WorkspaceStatusMessage = "Initializing workspace...";
             WorkspaceErrorDetails = null;
-            try
-            {
-                await runtime.InitializeAsync();
-                var ws = FileProcessor.Core.SettingsService.Instance.WorkspaceDirectory;
-                if (!string.IsNullOrWhiteSpace(ws))
-                {
-                    var dbPath = Path.Combine(ws, "workspace.db");
-                    if (!File.Exists(dbPath))
-                    {
-                        WorkspaceInitializing = false;
-                        WorkspaceReady = false;
-                        WorkspaceError = true;
-                        WorkspaceStatusMessage = "Workspace DB missing";
-                        WorkspaceErrorDetails = $"Expected at: {dbPath}";
-                        return;
-                    }
-                }
-                WorkspaceInitializing = false;
-                WorkspaceReady = true;
-                WorkspaceStatusMessage = "Workspace ready";
-            }
-            catch (System.Exception ex)
-            {
-                WorkspaceInitializing = false;
-                WorkspaceReady = false;
-                WorkspaceError = true;
-                WorkspaceStatusMessage = "Workspace initialization failed";
-                WorkspaceErrorDetails = ex.Message + (ex.InnerException != null ? " | " + ex.InnerException.Message : string.Empty);
-            }
+        }
+
+        // Called by App when workspace initialized (dbExists indicates presence of db file)
+        public void ReportWorkspaceReady(bool dbExists, string? details)
+        {
+            WorkspaceInitializing = false;
+            WorkspaceReady = dbExists;
+            WorkspaceError = !dbExists;
+            WorkspaceStatusMessage = dbExists ? "Workspace ready" : "Workspace DB missing";
+            WorkspaceErrorDetails = details;
+        }
+
+        // Called by App when initialization failed
+        public void ReportWorkspaceFailed(string error)
+        {
+            WorkspaceInitializing = false;
+            WorkspaceReady = false;
+            WorkspaceError = true;
+            WorkspaceStatusMessage = "Workspace initialization failed";
+            WorkspaceErrorDetails = error;
         }
 
         [RelayCommand]
@@ -103,7 +99,11 @@ namespace FileProcessor.UI.ViewModels
         [RelayCommand]
         private async Task RetryWorkspaceInitAsync()
         {
-            await InitializeWorkspaceAsync();
+            if (RetryRequested != null)
+            {
+                ReportWorkspaceInitializing();
+                await RetryRequested();
+            }
         }
 
         [RelayCommand]

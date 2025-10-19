@@ -12,6 +12,9 @@ using FileProcessor.Infrastructure.Logging;
 using FileProcessor.Core.Workspace; // use runtime
 using Microsoft.Extensions.DependencyInjection;
 using FileProcessor.UI.Services;
+using Serilog.Debugging; // SelfLog
+using System.Diagnostics; // Debug
+using FileProcessor.Core.App; // host
 
 namespace FileProcessor.UI;
 
@@ -20,6 +23,7 @@ public partial class App : Application
     public static string OperationId { get; } = $"session_{DateTime.UtcNow:yyyyMMdd_HHmmss}"; // new per-session id
     private string? _logFilePath; // store path
     private System.IServiceProvider? _sp;
+    private IClassicDesktopStyleApplicationLifetime? _desktop;
 
     public override void Initialize()
     {
@@ -30,6 +34,9 @@ public partial class App : Application
 
     private void ConfigureLogging()
     {
+#if DEBUG
+        SelfLog.Enable(msg => Debug.WriteLine(msg));
+#endif
         // Get workspace path from settings
         var workspacePath = SettingsService.Instance.WorkspaceDirectory;
         if (string.IsNullOrWhiteSpace(workspacePath))
@@ -63,44 +70,64 @@ public partial class App : Application
         ConfigureLogging();
         var op = _sp.GetRequiredService<FileProcessor.Core.Logging.IOperationContext>();
         op.Initialize(OperationId, _logFilePath!);
-        var runtime = _sp.GetRequiredService<FileProcessor.Core.Workspace.IWorkspaceRuntime>();
-        // runtime init will be awaited when main window opens
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
+            _desktop = desktop;
             desktop.MainWindow = new MainWindow
             {
-                DataContext = new MainWindowViewModel()
+                DataContext = _sp.GetRequiredService<MainWindowViewModel>()
             };
             desktop.MainWindow.Opened += OnMainWindowOpened;
             desktop.ShutdownRequested += OnShutdownRequested;
+
+            // Wire RetryRequested from VM to centralized init
+            if (desktop.MainWindow.DataContext is MainWindowViewModel vm)
+            {
+                vm.RetryRequested = async () => await InitializeWorkspaceAsync();
+            }
         }
 
         base.OnFrameworkInitializationCompleted();
     }
-    
-    private async void OnMainWindowOpened(object? sender, EventArgs e)
+
+    private async System.Threading.Tasks.Task InitializeWorkspaceAsync()
     {
-        var runtime = _sp!.GetRequiredService<IWorkspaceRuntime>();
+        var host = _sp!.GetRequiredService<IApplicationHost>();
         try
         {
-            await runtime.InitializeAsync();
+            if (_desktop?.MainWindow?.DataContext is MainWindowViewModel vm)
+                vm.ReportWorkspaceInitializing();
+
+            await host.InitializeAsync();
             var workspacePath = SettingsService.Instance.WorkspaceDirectory!;
             var dbPath = Path.Combine(workspacePath, "workspace.db");
-            if (File.Exists(dbPath))
+            var exists = File.Exists(dbPath);
+            if (exists)
                 Log.Information("Workspace initialized. DB at {DbPath}", dbPath);
             else
                 Log.Warning("Workspace initialized but DB file not found. Expected {DbPath}", dbPath);
+
+            if (_desktop?.MainWindow?.DataContext is MainWindowViewModel vm2)
+                vm2.ReportWorkspaceReady(exists, exists ? null : $"Expected at: {dbPath}");
         }
         catch (Exception ex)
         {
             Log.Error(ex, "Workspace initialization failed");
+            if (_desktop?.MainWindow?.DataContext is MainWindowViewModel vm3)
+                vm3.ReportWorkspaceFailed(ex.Message + (ex.InnerException != null ? " | " + ex.InnerException.Message : string.Empty));
         }
+    }
+    
+    private async void OnMainWindowOpened(object? sender, EventArgs e)
+    {
+        await InitializeWorkspaceAsync();
     }
     
     private async void OnShutdownRequested(object? sender, ShutdownRequestedEventArgs e)
     {
-        var runtime = CompositionRoot.Get<IWorkspaceRuntime>();
+        var host = _sp!.GetRequiredService<IApplicationHost>();
+        var runtime = _sp!.GetRequiredService<IWorkspaceRuntime>();
         // Save settings before shutdown
         try
         {
@@ -109,11 +136,11 @@ public partial class App : Application
         catch { }
 
         // End active operation and materialize logs
-        try { await CompositionRoot.Get<IOperationContext>().EndCurrentOperationAsync("succeeded"); } catch { }
+        try { await _sp!.GetRequiredService<IOperationContext>().EndCurrentOperationAsync("succeeded"); } catch { }
         try { await runtime.MaterializeSessionLogsAsync(runtime.SessionId); } catch { }
 
-        // Flush Serilog then shutdown DB
+        // Coordinate shutdown via host (flush + db shutdown)
+        try { await host.ShutdownAsync(); } catch { }
         try { Serilog.Log.CloseAndFlush(); } catch { }
-        try { await runtime.ShutdownAsync(); } catch { }
     }
 }

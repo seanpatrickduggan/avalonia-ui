@@ -84,4 +84,8 @@ public interface IWorkspaceRuntime
     Task<string> MaterializeOperationLogsAsync(long operationId, string? outputPath = null, CancellationToken ct = default);
     Task<string> MaterializeSessionLogsAsync(long sessionId, string? outputPath = null, CancellationToken ct = default);
     Task ShutdownAsync(CancellationToken ct = default);
+
+    // Background writer (to replace static facade):
+    Task AppendOrBufferAsync(LogWrite write, CancellationToken ct = default);
+    Task FlushAsync(CancellationToken ct = default);
 }

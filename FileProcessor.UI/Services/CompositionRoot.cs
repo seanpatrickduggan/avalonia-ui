@@ -6,6 +6,10 @@ using FileProcessor.Core.Workspace;
 using FileProcessor.Infrastructure.Logging;
 using FileProcessor.Infrastructure.Workspace;
 using FileProcessor.Core;
+using FileProcessor.Core.App; // add
+using FileProcessor.Infrastructure.App; // add
+using FileProcessor.Core.Abstractions; // keep for IFileSystem
+using FileProcessor.Infrastructure.Abstractions; // keep for SystemFileSystem
 
 namespace FileProcessor.UI.Services;
 
@@ -20,16 +24,38 @@ public static class CompositionRoot
 
         // Core/Infra services
         services.AddSingleton<ISettingsService>(sp => FileProcessor.Core.SettingsService.Instance);
+
+        // Cross-cutting providers
+        services.AddSingleton<TimeProvider>(TimeProvider.System);
+        services.AddSingleton<IFileSystem, SystemFileSystem>();
+
         services.AddSingleton<IWorkspaceDb, SqliteWorkspaceDb>();
-        services.AddSingleton<IWorkspaceRuntime, WorkspaceRuntimeAdapter>();
+
+        // Instance runtime (owns DB + writer); expose as both runtime and appender
+        services.AddSingleton<WorkspaceRuntime>();
+        services.AddSingleton<IWorkspaceRuntime>(sp => sp.GetRequiredService<WorkspaceRuntime>());
+        services.AddSingleton<ILogAppender>(sp => sp.GetRequiredService<WorkspaceRuntime>());
+
+        // Host-level orchestrator (UI-agnostic)
+        services.AddSingleton<IApplicationHost, ApplicationHost>();
+
         services.AddSingleton<IOperationContext, OperationContextService>();
-        services.AddSingleton<ILogReader, SqliteLogReader>(); // default DB-backed reader
+        services.AddSingleton<ILogReader, SqliteLogReader>();
         services.AddSingleton<ILogReaderFactory>(sp => new LogReaderFactory(sp));
-        services.AddSingleton<ILogWriteTarget, WorkspaceLogWriteTargetAdapter>();
+
+        // Logging target plumbing uses instance-backed runtime + appender
+        services.AddSingleton<ILogWriteTarget, WorkspaceLogWriteTarget>();
+
+        // UI window factory
+        services.AddSingleton<IWindowFactory, WindowFactory>();
 
         // ViewModels
         services.AddSingleton<FileProcessor.UI.ViewModels.FileProcessorViewModel>();
         services.AddSingleton<FileProcessor.UI.ViewModels.FileConverterViewModel>();
+        services.AddSingleton<FileProcessor.UI.ViewModels.SettingsViewModel>();
+        services.AddSingleton<FileProcessor.UI.ViewModels.FileGeneratorViewModel>();
+        services.AddTransient<FileProcessor.UI.ViewModels.LogViewerWindowViewModel>();
+        services.AddSingleton<FileProcessor.UI.ViewModels.MainWindowViewModel>();
 
         _provider = services.BuildServiceProvider(validateScopes: false);
         return _provider;
