@@ -3,14 +3,22 @@ using FileProcessor.Core.Workspace;
 using Serilog.Core;
 using Serilog.Events;
 using System.Text.Json;
-using FileProcessor.Infrastructure.Workspace;
-using Wdb = FileProcessor.Infrastructure.Workspace.WorkspaceDbService;
 
 namespace FileProcessor.Infrastructure.Logging;
 
-// Serilog sink that mirrors log events into the workspace SQLite DB via WorkspaceDbService.
+public interface ILogWriteTarget
+{
+    long? SessionIdOrNull { get; }
+    long CurrentOperationId { get; }
+    void AppendOrBuffer(FileProcessor.Core.Workspace.LogWrite write);
+}
+
+// Serilog sink that mirrors log events into the workspace via an injected target.
 public sealed class WorkspaceSqliteSink : ILogEventSink
 {
+    private readonly ILogWriteTarget _target;
+    public WorkspaceSqliteSink(ILogWriteTarget target) => _target = target;
+
     public void Emit(LogEvent e)
     {
         try
@@ -51,13 +59,13 @@ public sealed class WorkspaceSqliteSink : ILogEventSink
                 Subcategory: sub?.ToString().Trim('"'),
                 Message: message,
                 DataJson: dataJson,
-                SessionId: Wdb.SessionIdOrNull,
-                OperationId: Wdb.CurrentOperationId == 0 ? (long?)null : Wdb.CurrentOperationId,
+                SessionId: _target.SessionIdOrNull,
+                OperationId: _target.CurrentOperationId == 0 ? (long?)null : _target.CurrentOperationId,
                 ItemId: itemId,
                 Source: source?.ToString().Trim('"') ?? "serilog"
             );
 
-            Wdb.AppendOrBuffer(write);
+            _target.AppendOrBuffer(write);
         }
         catch
         {

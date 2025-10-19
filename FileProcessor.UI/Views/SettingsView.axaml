@@ -74,7 +74,7 @@
                 <StackPanel Spacing="8">
                   <TextBlock Text="Display Name (optional):" FontSize="12"/>
                   <TextBox Text="{Binding NewWorkspaceName}" 
-                           Watermark="Enter a friendly name for this workspace"
+                           Watermark="Enter a name for this workspace"
                            Width="400"
                            HorizontalAlignment="Left"/>
                 </StackPanel>
@@ -240,6 +240,19 @@
         </StackPanel>
       </Border>
       
+      <!-- About Section -->
+      <Border BorderBrush="{DynamicResource SystemControlForegroundBaseMediumBrush}" 
+              BorderThickness="1" 
+              CornerRadius="8" 
+              Padding="20">
+        <StackPanel Spacing="10">
+          <TextBlock Text="About" FontSize="18" FontWeight="SemiBold"/>
+          <TextBlock Text="Fileonia - File Processing Application" FontSize="14"/>
+          <TextBlock Text="Version 1.0.0" FontSize="12" Opacity="0.7"/>
+          <TextBlock Text="Built with Avalonia UI and .NET 8" FontSize="12" Opacity="0.7"/>
+        </StackPanel>
+      </Border>
+
       <!-- Status Display -->
       <Border Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
               CornerRadius="4" 
@@ -258,18 +271,6 @@
         </Grid>
       </Border>
       
-      <!-- About Section -->
-      <Border BorderBrush="{DynamicResource SystemControlForegroundBaseMediumBrush}" 
-              BorderThickness="1" 
-              CornerRadius="8" 
-              Padding="20">
-        <StackPanel Spacing="10">
-          <TextBlock Text="About" FontSize="18" FontWeight="SemiBold"/>
-          <TextBlock Text="Fileonia - File Processing Application" FontSize="14"/>
-          <TextBlock Text="Version 1.0.0" FontSize="12" Opacity="0.7"/>
-          <TextBlock Text="Built with Avalonia UI and .NET 8" FontSize="12" Opacity="0.7"/>
-        </StackPanel>
-      </Border>
     </StackPanel>
   </ScrollViewer>
 </UserControl>

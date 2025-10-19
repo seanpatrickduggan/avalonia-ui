@@ -1,4 +1,3 @@
-
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using FileProcessor.Core;
@@ -247,7 +246,15 @@ namespace FileProcessor.UI.ViewModels
                 
                 if (HasValidWorkspace)
                 {
-                    StatusMessage = "Workspace loaded successfully";
+                    var dbPath = Path.Combine(_settingsService.WorkspaceDirectory!, "workspace.db");
+                    if (File.Exists(dbPath))
+                    {
+                        StatusMessage = "Workspace loaded successfully";
+                    }
+                    else
+                    {
+                        StatusMessage = $"Workspace DB missing at {dbPath}";
+                    }
                 }
                 else
                 {

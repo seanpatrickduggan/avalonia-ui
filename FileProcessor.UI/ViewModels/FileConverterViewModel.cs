@@ -82,7 +82,6 @@ public partial class FileConverterViewModel : ViewModelBase
         get 
         {
             var result = HasSelectedWorkspaces && !IsCheckingFiles;
-            Console.WriteLine($"CanCheckFilesEnabled getter called: HasSelectedWorkspaces={HasSelectedWorkspaces}, IsCheckingFiles={IsCheckingFiles}, Result={result}");
             return result;
         }
     }
@@ -108,16 +107,12 @@ public partial class FileConverterViewModel : ViewModelBase
             execute: async () => await CheckFilesAsync(),
             canExecute: () => {
                 var canExecute = HasSelectedWorkspaces && !IsCheckingFiles;
-                Console.WriteLine($"CheckFilesCommand.CanExecute called: {canExecute}");
                 return canExecute;
             });
         
         // Subscribe to workspace changes
         _settingsService.WorkspaceChanged += OnWorkspaceChanged;
 
-        // Debug initial command state
-        Console.WriteLine("Constructor: Command created");
-        
         // Set output directory from workspace settings
         UpdateOutputDirectory();
         
@@ -611,9 +606,6 @@ public partial class FileConverterViewModel : ViewModelBase
         var selectedCount = AvailableWorkspaces.Count(w => w.IsSelected);
         var newValue = selectedCount > 0;
         
-        // Debug output
-        Console.WriteLine($"UpdateHasSelectedWorkspaces: {selectedCount} selected out of {AvailableWorkspaces.Count} total. New value: {newValue}, Current value: {HasSelectedWorkspaces}");
-        
         HasSelectedWorkspaces = newValue;
         
         ProgressText = $"Button should now be {(newValue ? "ENABLED" : "DISABLED")} - HasSelectedWorkspaces = {HasSelectedWorkspaces}";
@@ -626,9 +618,7 @@ public partial class FileConverterViewModel : ViewModelBase
         if (CheckFilesCommand is RelayCommand cmd)
         {
             cmd.NotifyCanExecuteChanged();
-            Console.WriteLine($"OnHasSelectedWorkspacesChanged: {value}, notified command CanExecute changed");
         }
-        Console.WriteLine($"OnHasSelectedWorkspacesChanged: {value}, CanCheckFilesEnabled: {CanCheckFilesEnabled}");
     }
 
     // This method will be called automatically when IsCheckingFiles changes  
@@ -638,9 +628,7 @@ public partial class FileConverterViewModel : ViewModelBase
         if (CheckFilesCommand is RelayCommand cmd)
         {
             cmd.NotifyCanExecuteChanged();
-            Console.WriteLine($"OnIsCheckingFilesChanged: {value}, notified command CanExecute changed");
         }
-        Console.WriteLine($"OnIsCheckingFilesChanged: {value}, CanCheckFilesEnabled: {CanCheckFilesEnabled}");
     }
 
     [RelayCommand]

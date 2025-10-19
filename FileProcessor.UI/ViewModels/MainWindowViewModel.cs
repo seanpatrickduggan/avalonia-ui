@@ -6,6 +6,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
 using FileProcessor.Core.Workspace;
+using System.IO;
 
 namespace FileProcessor.UI.ViewModels
 {
@@ -58,6 +59,20 @@ namespace FileProcessor.UI.ViewModels
             try
             {
                 await runtime.InitializeAsync();
+                var ws = FileProcessor.Core.SettingsService.Instance.WorkspaceDirectory;
+                if (!string.IsNullOrWhiteSpace(ws))
+                {
+                    var dbPath = Path.Combine(ws, "workspace.db");
+                    if (!File.Exists(dbPath))
+                    {
+                        WorkspaceInitializing = false;
+                        WorkspaceReady = false;
+                        WorkspaceError = true;
+                        WorkspaceStatusMessage = "Workspace DB missing";
+                        WorkspaceErrorDetails = $"Expected at: {dbPath}";
+                        return;
+                    }
+                }
                 WorkspaceInitializing = false;
                 WorkspaceReady = true;
                 WorkspaceStatusMessage = "Workspace ready";
@@ -68,7 +83,7 @@ namespace FileProcessor.UI.ViewModels
                 WorkspaceReady = false;
                 WorkspaceError = true;
                 WorkspaceStatusMessage = "Workspace initialization failed";
-                WorkspaceErrorDetails = ex.Message;
+                WorkspaceErrorDetails = ex.Message + (ex.InnerException != null ? " | " + ex.InnerException.Message : string.Empty);
             }
         }
 

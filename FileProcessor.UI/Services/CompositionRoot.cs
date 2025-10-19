@@ -25,6 +25,7 @@ public static class CompositionRoot
         services.AddSingleton<IOperationContext, OperationContextService>();
         services.AddSingleton<ILogReader, SqliteLogReader>(); // default DB-backed reader
         services.AddSingleton<ILogReaderFactory>(sp => new LogReaderFactory(sp));
+        services.AddSingleton<ILogWriteTarget, WorkspaceLogWriteTargetAdapter>();
 
         // ViewModels
         services.AddSingleton<FileProcessor.UI.ViewModels.FileProcessorViewModel>();

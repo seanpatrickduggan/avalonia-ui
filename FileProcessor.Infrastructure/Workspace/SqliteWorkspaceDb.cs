@@ -18,6 +18,7 @@ public sealed class SqliteWorkspaceDb : IWorkspaceDb
     public async Task InitializeAsync(string dbPath, CancellationToken ct = default)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(dbPath)!);
+        var baseFileExisted = File.Exists(dbPath);
         var cs = new SqliteConnectionStringBuilder
         {
             DataSource = dbPath,
@@ -29,36 +30,35 @@ public sealed class SqliteWorkspaceDb : IWorkspaceDb
 
         using (var pragma = _conn.CreateCommand())
         {
-            pragma.CommandText = "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA foreign_keys=ON;";
+            pragma.CommandText = "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;";
             await pragma.ExecuteNonQueryAsync(ct);
         }
 
-        // Schema version gate: recreate DB if version mismatches (prototype behavior)
+        // Detect existing schema version (if any)
         int existingVer = -1;
+        bool hasSchemaInfo = false;
         try
         {
-            using var chk = _conn.CreateCommand();
-            chk.CommandText = "SELECT version FROM schema_info LIMIT 1";
-            var obj = await chk.ExecuteScalarAsync(ct);
-            if (obj is long l) existingVer = (int)l;
-        }
-        catch { existingVer = -1; }
-
-        if (existingVer != CurrentSchemaVersion)
-        {
-            try { await _conn.CloseAsync(); } catch { }
-            _conn.Dispose();
-            try { if (File.Exists(dbPath)) File.Delete(dbPath); } catch { /* ignore */ }
-
-            _conn = new SqliteConnection(cs);
-            await _conn.OpenAsync(ct);
-            using (var pragma2 = _conn.CreateCommand())
+            using var chkTable = _conn.CreateCommand();
+            chkTable.CommandText = "SELECT 1 FROM sqlite_master WHERE type='table' AND name='schema_info'";
+            var existsObj = await chkTable.ExecuteScalarAsync(ct);
+            hasSchemaInfo = existsObj != null;
+            if (hasSchemaInfo)
             {
-                pragma2.CommandText = "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA foreign_keys=ON;";
-                await pragma2.ExecuteNonQueryAsync(ct);
+                using var chk = _conn.CreateCommand();
+                chk.CommandText = "SELECT version FROM schema_info LIMIT 1";
+                var obj = await chk.ExecuteScalarAsync(ct);
+                if (obj is long l) existingVer = (int)l;
             }
+        }
+        catch { hasSchemaInfo = false; existingVer = -1; }
 
-            var schemaPathNew = Path.Combine(AppContext.BaseDirectory, "Workspace", "WorkspaceSchema.sql");
+        var infraBaseDir = Path.GetDirectoryName(typeof(SqliteWorkspaceDb).Assembly.Location)!;
+
+        // First-time creation: no base file or no schema_info table
+        if (!baseFileExisted || !hasSchemaInfo)
+        {
+            var schemaPathNew = Path.Combine(infraBaseDir, "Workspace", "WorkspaceSchema.sql");
             var sqlNew = await File.ReadAllTextAsync(schemaPathNew, ct);
             using (var cmdNew = _conn.CreateCommand())
             {
@@ -73,6 +73,56 @@ public sealed class SqliteWorkspaceDb : IWorkspaceDb
                 await verCmd.ExecuteNonQueryAsync(ct);
             }
 
+            try
+            {
+                using var ckp = _conn.CreateCommand();
+                ckp.CommandText = "PRAGMA wal_checkpoint(TRUNCATE);";
+                await ckp.ExecuteNonQueryAsync(ct);
+            }
+            catch { }
+
+            Log.Information("Workspace database created with schema v{Version} at {Path}", CurrentSchemaVersion, dbPath);
+            return;
+        }
+
+        // True mismatch: existing DB with old schema_info version
+        if (existingVer != CurrentSchemaVersion)
+        {
+            try { await _conn.CloseAsync(); } catch { }
+            _conn.Dispose();
+            try { if (File.Exists(dbPath)) File.Delete(dbPath); } catch { /* ignore */ }
+
+            _conn = new SqliteConnection(cs);
+            await _conn.OpenAsync(ct);
+            using (var pragma2 = _conn.CreateCommand())
+            {
+                pragma2.CommandText = "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;";
+                await pragma2.ExecuteNonQueryAsync(ct);
+            }
+
+            var schemaPathNew = Path.Combine(infraBaseDir, "Workspace", "WorkspaceSchema.sql");
+            var sqlNew = await File.ReadAllTextAsync(schemaPathNew, ct);
+            using (var cmdNew = _conn.CreateCommand())
+            {
+                cmdNew.CommandText = sqlNew;
+                await cmdNew.ExecuteNonQueryAsync(ct);
+            }
+
+            using (var verCmd = _conn.CreateCommand())
+            {
+                verCmd.CommandText = "CREATE TABLE IF NOT EXISTS schema_info(version INTEGER NOT NULL); DELETE FROM schema_info; INSERT INTO schema_info(version) VALUES($v);";
+                verCmd.Parameters.AddWithValue("$v", CurrentSchemaVersion);
+                await verCmd.ExecuteNonQueryAsync(ct);
+            }
+
+            try
+            {
+                using var ckp = _conn.CreateCommand();
+                ckp.CommandText = "PRAGMA wal_checkpoint(TRUNCATE);";
+                await ckp.ExecuteNonQueryAsync(ct);
+            }
+            catch { }
+
             var noticePath = Path.Combine(Path.GetDirectoryName(dbPath)!, "workspace-schema-reset.txt");
             var msg = $"Workspace database was recreated due to schema version mismatch (found {existingVer}, expected {CurrentSchemaVersion}). A fresh schema has been applied.";
             try { await File.WriteAllTextAsync(noticePath, $"{DateTime.UtcNow:o} {msg}\nDB Path: {dbPath}\n", ct); } catch { }
@@ -80,7 +130,7 @@ public sealed class SqliteWorkspaceDb : IWorkspaceDb
             return;
         }
 
-        // Ensure schema_info exists and is set to current version
+        // Existing and up-to-date: ensure schema elements exist
         using (var ensure = _conn.CreateCommand())
         {
             ensure.CommandText = "CREATE TABLE IF NOT EXISTS schema_info(version INTEGER NOT NULL); DELETE FROM schema_info; INSERT INTO schema_info(version) VALUES($v);";
@@ -88,11 +138,19 @@ public sealed class SqliteWorkspaceDb : IWorkspaceDb
             await ensure.ExecuteNonQueryAsync(ct);
         }
 
-        var schemaPath = Path.Combine(AppContext.BaseDirectory, "Workspace", "WorkspaceSchema.sql");
+        var schemaPath = Path.Combine(infraBaseDir, "Workspace", "WorkspaceSchema.sql");
         var sql = await File.ReadAllTextAsync(schemaPath, ct);
         using var cmd = _conn.CreateCommand();
         cmd.CommandText = sql;
         await cmd.ExecuteNonQueryAsync(ct);
+
+        try
+        {
+            using var ckp2 = _conn.CreateCommand();
+            ckp2.CommandText = "PRAGMA wal_checkpoint(TRUNCATE);";
+            await ckp2.ExecuteNonQueryAsync(ct);
+        }
+        catch { }
     }
 
     public void Dispose() => _conn?.Dispose();

@@ -13,10 +13,12 @@ public sealed class OperationContextService : IOperationContext
 {
     private ILogger? _rootLogger;
     private readonly IWorkspaceRuntime _runtime;
+    private readonly ILogWriteTarget _target;
 
-    public OperationContextService(IWorkspaceRuntime runtime)
+    public OperationContextService(IWorkspaceRuntime runtime, ILogWriteTarget target)
     {
         _runtime = runtime;
+        _target = target;
     }
 
     public string OperationId { get; private set; } = string.Empty;
@@ -38,7 +40,7 @@ public sealed class OperationContextService : IOperationContext
                     path: logFilePath,
                     shared: false,
                     formatter: new Serilog.Formatting.Compact.CompactJsonFormatter()))
-                .WriteTo.Sink(new WorkspaceSqliteSink())
+                .WriteTo.Sink(new WorkspaceSqliteSink(_target))
                 .CreateLogger();
         }
         OperationLogger = new WorkspaceOperationStructuredLogger(_rootLogger);
@@ -76,7 +78,7 @@ public sealed class OperationContextService : IOperationContext
                 path: newPath,
                 shared: false,
                 formatter: new Serilog.Formatting.Compact.CompactJsonFormatter()))
-            .WriteTo.Sink(new WorkspaceSqliteSink())
+            .WriteTo.Sink(new WorkspaceSqliteSink(_target))
             .CreateLogger();
 
         OperationLogger = new WorkspaceOperationStructuredLogger(_rootLogger);

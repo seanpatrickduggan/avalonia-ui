@@ -18,27 +18,50 @@ public static class WorkspaceDbService
     private static long _currentOperationId;
     private static readonly ConcurrentQueue<LogWrite> _pending = new();
 
+    private static readonly object _initLock = new();
+    private static Task? _initTask;
+
     public static IWorkspaceDb Db => _db ?? throw new InvalidOperationException("Workspace DB not initialized");
     public static long SessionId => _sessionId;
     public static long? SessionIdOrNull => _sessionId == 0 ? (long?)null : _sessionId;
     public static long CurrentOperationId => _currentOperationId;
 
-    public static async Task InitializeAsync(CancellationToken ct = default)
+    public static Task InitializeAsync(CancellationToken ct = default)
     {
-        var workspacePath = SettingsService.Instance.WorkspaceDirectory
-            ?? throw new InvalidOperationException("Workspace directory is not configured");
-        Directory.CreateDirectory(workspacePath);
-        var dbPath = Path.Combine(workspacePath, "workspace.db");
+        lock (_initLock)
+        {
+            if (_initTask != null) return _initTask;
+            _initTask = InitializeCoreAsync(ct);
+            return _initTask;
+        }
+    }
 
-        var db = new SqliteWorkspaceDb();
-        await db.InitializeAsync(dbPath, ct);
-        _sessionId = await db.StartSessionAsync(appVersion: typeof(WorkspaceDbService).Assembly.GetName().Version?.ToString(),
-                                               userName: Environment.UserName,
-                                               hostName: Environment.MachineName,
-                                               ct: ct);
-        _db = db;
-        // flush any pending logs captured before init completed
-        await FlushPendingAsync(ct);
+    private static async Task InitializeCoreAsync(CancellationToken ct)
+    {
+        try
+        {
+            var workspacePath = SettingsService.Instance.WorkspaceDirectory
+                ?? throw new InvalidOperationException("Workspace directory is not configured");
+            Directory.CreateDirectory(workspacePath);
+            var dbPath = Path.Combine(workspacePath, "workspace.db");
+
+            var db = new SqliteWorkspaceDb();
+            await db.InitializeAsync(dbPath, ct);
+            _sessionId = await db.StartSessionAsync(appVersion: typeof(WorkspaceDbService).Assembly.GetName().Version?.ToString(),
+                                                   userName: Environment.UserName,
+                                                   hostName: Environment.MachineName,
+                                                   ct: ct);
+            _db = db;
+            // flush any pending logs captured before init completed
+            await FlushPendingAsync(ct);
+        }
+        finally
+        {
+            lock (_initLock)
+            {
+                _initTask = null;
+            }
+        }
     }
 
     // Accept a log write; buffer until DB/session is ready, otherwise append best-effort.

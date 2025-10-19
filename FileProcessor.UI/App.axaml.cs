@@ -19,6 +19,7 @@ public partial class App : Application
 {
     public static string OperationId { get; } = $"session_{DateTime.UtcNow:yyyyMMdd_HHmmss}"; // new per-session id
     private string? _logFilePath; // store path
+    private System.IServiceProvider? _sp;
 
     public override void Initialize()
     {
@@ -40,6 +41,7 @@ public partial class App : Application
         Directory.CreateDirectory(logsDir);
         var logPath = Path.Combine(logsDir, $"operation-{OperationId}.jsonl");
         _logFilePath = logPath; // save
+        var target = _sp!.GetRequiredService<ILogWriteTarget>();
         Log.Logger = new LoggerConfiguration()
             .Enrich.WithProperty("app", "FileProcessor")
             .Enrich.WithProperty("operation", OperationId)
@@ -48,21 +50,21 @@ public partial class App : Application
                 path: logPath,
                 shared: false,
                 formatter: new Serilog.Formatting.Compact.CompactJsonFormatter()))
-            .WriteTo.Sink(new WorkspaceSqliteSink())
+            .WriteTo.Sink(new WorkspaceSqliteSink(target))
             .CreateLogger();
     }
 
     public override void OnFrameworkInitializationCompleted()
     {
         // Build DI container
-        var sp = CompositionRoot.Build();
+        _sp = CompositionRoot.Build();
 
         // Logging + DB after XAML is loaded
         ConfigureLogging();
-        var op = sp.GetRequiredService<FileProcessor.Core.Logging.IOperationContext>();
+        var op = _sp.GetRequiredService<FileProcessor.Core.Logging.IOperationContext>();
         op.Initialize(OperationId, _logFilePath!);
-        var runtime = sp.GetRequiredService<FileProcessor.Core.Workspace.IWorkspaceRuntime>();
-        _ = runtime.InitializeAsync();
+        var runtime = _sp.GetRequiredService<FileProcessor.Core.Workspace.IWorkspaceRuntime>();
+        // runtime init will be awaited when main window opens
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
@@ -70,10 +72,30 @@ public partial class App : Application
             {
                 DataContext = new MainWindowViewModel()
             };
+            desktop.MainWindow.Opened += OnMainWindowOpened;
             desktop.ShutdownRequested += OnShutdownRequested;
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+    
+    private async void OnMainWindowOpened(object? sender, EventArgs e)
+    {
+        var runtime = _sp!.GetRequiredService<IWorkspaceRuntime>();
+        try
+        {
+            await runtime.InitializeAsync();
+            var workspacePath = SettingsService.Instance.WorkspaceDirectory!;
+            var dbPath = Path.Combine(workspacePath, "workspace.db");
+            if (File.Exists(dbPath))
+                Log.Information("Workspace initialized. DB at {DbPath}", dbPath);
+            else
+                Log.Warning("Workspace initialized but DB file not found. Expected {DbPath}", dbPath);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Workspace initialization failed");
+        }
     }
     
     private async void OnShutdownRequested(object? sender, ShutdownRequestedEventArgs e)
