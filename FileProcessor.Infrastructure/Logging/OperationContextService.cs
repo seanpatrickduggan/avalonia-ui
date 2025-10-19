@@ -24,10 +24,24 @@ public sealed class OperationContextService : IOperationContext
     public IItemLogFactory ItemLogFactory { get; private set; } = default!;
     public IOperationStructuredLogger OperationLogger { get; private set; } = default!;
 
-    public void Initialize(ILogger rootLogger, string operationId, string logFilePath)
+    // Core no longer sees Serilog.ILogger; Infra owns logger creation.
+    public void Initialize(string operationId, string logFilePath)
     {
-        _rootLogger = rootLogger;
-        OperationLogger = new WorkspaceOperationStructuredLogger(rootLogger);
+        // If an external logger already exists, keep it; otherwise build a basic one for current operation.
+        if (_rootLogger == null)
+        {
+            _rootLogger = new LoggerConfiguration()
+                .Enrich.WithProperty("app", "FileProcessor")
+                .Enrich.WithProperty("operation", operationId)
+                .MinimumLevel.Debug()
+                .WriteTo.Async(a => a.File(
+                    path: logFilePath,
+                    shared: false,
+                    formatter: new Serilog.Formatting.Compact.CompactJsonFormatter()))
+                .WriteTo.Sink(new WorkspaceSqliteSink())
+                .CreateLogger();
+        }
+        OperationLogger = new WorkspaceOperationStructuredLogger(_rootLogger);
         ApplyOperation(operationId, logFilePath);
     }
 
@@ -41,13 +55,11 @@ public sealed class OperationContextService : IOperationContext
 
     public async Task StartNewOperationAsync(string? operationType = null)
     {
-        // Close existing logger sinks if we own them
-        try { Log.CloseAndFlush(); } catch { /* ignore */ }
+        try { Log.CloseAndFlush(); } catch { }
 
         var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
         var opId = string.IsNullOrEmpty(operationType) ? timestamp : $"{operationType}_{timestamp}";
 
-        // Get workspace path from settings (Core singleton remains for now)
         var workspacePath = FileProcessor.Core.SettingsService.Instance.WorkspaceDirectory;
         if (string.IsNullOrWhiteSpace(workspacePath))
             throw new InvalidOperationException("No workspace configured. Please configure a workspace before starting a new operation.");
@@ -56,7 +68,6 @@ public sealed class OperationContextService : IOperationContext
         Directory.CreateDirectory(logsDir);
         var newPath = Path.Combine(logsDir, $"operation-{opId}.jsonl");
 
-        // Create a new root logger for this operation
         _rootLogger = new LoggerConfiguration()
             .Enrich.WithProperty("app", "FileProcessor")
             .Enrich.WithProperty("operation", opId)
@@ -71,7 +82,6 @@ public sealed class OperationContextService : IOperationContext
         OperationLogger = new WorkspaceOperationStructuredLogger(_rootLogger);
         ApplyOperation(opId, newPath);
 
-        // Start a DB operation in the workspace (DB schema now operation-oriented)
         try { await _runtime.StartOperationAsync(operationType ?? "operation", name: opId); } catch { }
     }
 

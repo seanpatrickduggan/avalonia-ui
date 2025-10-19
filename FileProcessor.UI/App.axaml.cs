@@ -60,7 +60,7 @@ public partial class App : Application
         // Logging + DB after XAML is loaded
         ConfigureLogging();
         var op = sp.GetRequiredService<FileProcessor.Core.Logging.IOperationContext>();
-        op.Initialize(Log.Logger, OperationId, _logFilePath!);
+        op.Initialize(OperationId, _logFilePath!);
         var runtime = sp.GetRequiredService<FileProcessor.Core.Workspace.IWorkspaceRuntime>();
         _ = runtime.InitializeAsync();
 

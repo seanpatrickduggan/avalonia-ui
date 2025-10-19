@@ -79,7 +79,7 @@ public interface IOperationContext
     IItemLogFactory ItemLogFactory { get; }
     IOperationStructuredLogger OperationLogger { get; }
 
-    void Initialize(Serilog.ILogger rootLogger, string operationId, string logFilePath);
+    void Initialize(string operationId, string logFilePath);
     System.Threading.Tasks.Task StartNewOperationAsync(string? operationType = null);
     System.Threading.Tasks.Task EndCurrentOperationAsync(string status = "succeeded");
 }
