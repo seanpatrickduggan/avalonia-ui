@@ -10,38 +10,61 @@ Eliminate architectural smells and lock in a clean, testable, framework-agnostic
 - Concurrency: explicit background pipeline for log writes with bounded buffering and cancellation.
 
 ## Plan
-1) Purge Serilog from Core (Core purity)
-   - Move SerilogOperationStructuredLogger out of Core to Infrastructure.
-   - Change `IOperationContext.Initialize` to remove Serilog types (take primitives/own abstractions only).
-   - Update UI/Infra to build Serilog in Infra and pass only Core-safe types into Core.
-2) Refactor logging sink DI (DI purity)
-   - Replace `WorkspaceSqliteSink` static access with constructor-injected dependency (e.g., `ILogWriteTarget` or `IWorkspaceRuntime`).
-   - Resolve sink with DI at logger configuration time; remove static `WorkspaceDbService` usage.
-3) Remove service locator from UI (DI purity)
+1) Purge Serilog from Core (Core purity) — DONE
+   - Serilog types removed from Core contracts. `IOperationContext.Initialize(string operationId, string logFilePath)` now takes primitives only.
+   - Serilog-based `WorkspaceOperationStructuredLogger` lives in Infrastructure.
+   - UI/Infra construct Serilog loggers; Core remains framework-agnostic.
+2) Refactor logging sink DI (DI purity) — DONE (phase 1)
+   - `WorkspaceSqliteSink` no longer accesses statics; it depends on injected `ILogWriteTarget`.
+   - DI supplies `ILogWriteTarget` via `WorkspaceLogWriteTargetAdapter` (adapts current static runtime). Next phase: remove the static facade entirely.
+3) Remove service locator from UI (DI purity) — PENDING
    - Switch ViewModels to constructor injection; register all VMs in DI.
-   - MainWindow obtains its DataContext via DI; eliminate `CompositionRoot.Get<T>()` calls in VMs.
-4) Centralize init/shutdown (Lifecycle)
-   - Choose a single owner (App startup) to `await IWorkspaceRuntime.InitializeAsync` and wire `IOperationContext`.
+   - MainWindow obtains its DataContext via DI; eliminate `CompositionRoot.Get<T>()` calls.
+4) Centralize init/shutdown (Lifecycle) — IN PROGRESS
+   - Single-flight runtime init implemented to prevent double schema resets.
+   - App awaits init on window open and surfaces health; VMs still trigger init redundantly — to be removed.
    - Ensure shutdown awaits `EndCurrentOperationAsync`, materialization, and runtime disposal.
-   - Implement/adhere to `IAsyncDisposable` for long-lived Infra services where appropriate.
-5) Concurrency/backpressure (Concurrency)
-   - Introduce a bounded `Channel<LogWrite>` (or equivalent queue) for DB writes; single consumer appends to DB.
-   - Flow `CancellationToken` across public async APIs; avoid `async void`.
-6) Cross-cutting abstractions (Testability)
+5) Concurrency/backpressure (Concurrency) — PENDING
+   - Introduce bounded queue (Channel<LogWrite>) with single consumer; sink enqueues; background worker appends.
+   - Flow CancellationToken across public async APIs; avoid `async void`.
+6) Cross-cutting abstractions (Testability) — PENDING
    - Add `TimeProvider`/`ITimeProvider` and file-system abstraction for materialization paths; inject via DI in Infra.
 
 ## Deliverables
-- Core has no Serilog references; Serilog adapter lives in Infrastructure.
-- `WorkspaceSqliteSink` and logging path use DI; no static DB/service access.
-- No `CompositionRoot.Get<T>()` in ViewModels; DataContexts constructed via DI.
-- Single init/shutdown path that is awaited; services disposable/async-disposable as needed.
-- Background, bounded writer for DB log appends with cancellation support.
+- Core has no Serilog references; Serilog adapter lives in Infrastructure. ✅
+- `WorkspaceSqliteSink` uses DI; no direct static DB/service access. ✅ (adapter still uses current static runtime)
+- Robust workspace DB lifecycle: first-run creates schema; true mismatches rebuild with notice; WAL checkpointing improved; UI warns if DB missing. ✅
+- No `CompositionRoot.Get<T>()` in ViewModels; DataContexts constructed via DI. ⏳
+- Single init/shutdown path that is awaited; services disposable/async-disposable as needed. ⏳
+- Background, bounded writer for DB log appends with cancellation support. ⏳
 
-## Acceptance Criteria
-- Build passes with Core free of Serilog types and no static service usage on hot paths.
-- Manual run shows: one init sequence, banner reflects status, clean shutdown without leaked tasks.
-- Code review checklists confirm DI-only flows and explicit concurrency policy are documented.
+## Acceptance Criteria (updated)
+- Build passes with Core free of Serilog types; sink is DI-driven; app starts with one init sequence (no duplicate schema resets).
+- Fresh workspace: DB is created with schema; no mismatch warning. Existing older DB: reset with notice; modern DB: no warnings.
+- UI health banner shows clear warnings if the DB is missing or init fails, with retry and Settings navigation.
+- Service locator removed from VMs; DataContexts resolved via DI; init/shutdown owned centrally and awaited.
+- Log path uses a bounded background writer with graceful shutdown (flush on exit).
 
 ## Status
-- DI present; many statics removed; runtime used via DI in most places.
-- Pending: remove Serilog from Core, inject sink deps, remove service locator usage in VMs, centralize init/shutdown, implement bounded writer, add cross-cutting providers.
+- Core purity: DONE.
+- Sink DI: DONE (adapter in place); runtime still has a static facade to be eliminated later.
+- Workspace DB creation/mismatch handling: DONE and verified; warnings improved.
+- UI health surfacing: DONE (missing-DB and init-failure surfaced).
+- Remove service locator in VMs: PENDING.
+- Centralize init/shutdown (remove redundant VM init, ensure awaited path): IN PROGRESS.
+- Bounded writer/cancellation: PENDING.
+- Cross-cutting providers: PENDING.
+
+## Next Actions
+- UI/DI
+  - Move ViewModels to constructor injection; register all VMs in DI; stop using `CompositionRoot.Get<T>()` in VMs.
+  - Set MainWindow.DataContext via DI factory in App.
+- Lifecycle
+  - Make App the single owner: remove VM-driven `InitializeAsync`; keep health observing only.
+  - Ensure shutdown sequence awaits: end operation → materialize logs → flush Serilog → runtime shutdown.
+- Concurrency
+  - Add `Channel<LogWrite>`-based writer in Infrastructure; inject it into sink target; implement bounded capacity, backpressure, and cancellation.
+  - Add `IAsyncDisposable` to runtime/writer and dispose on shutdown.
+- Tech debt cleanup
+  - Replace `WorkspaceDbService` static with an instance-based runtime service; update `WorkspaceLogWriteTargetAdapter` to wrap the instance.
+  - Introduce `ITimeProvider` and file-system abstraction; thread through materialization paths and tests.
