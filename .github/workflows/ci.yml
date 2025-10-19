@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build -c Release --no-restore
+
+      - name: Test with coverage
+        run: dotnet test -c Release --no-build --collect:"XPlat Code Coverage" -v minimal
+
+      - name: Restore dotnet tools
+        run: dotnet tool restore
+
+      - name: Generate coverage report
+        run: dotnet tool run reportgenerator -reports:"tests/**/TestResults/**/coverage.cobertura.xml" -targetdir:"coverage-report" -reporttypes:"Html;HtmlSummary;Cobertura;lcov"
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            coverage-report/**
+            tests/**/TestResults/**/coverage.cobertura.xml

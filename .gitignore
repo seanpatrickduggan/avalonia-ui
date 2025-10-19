@@ -72,3 +72,4 @@ FileProcessorWorkspace/*
 
 # Code metrics
 .VSCodeCounter/*
+tests/**/TestResults/**/coverage.cobertura.xml
