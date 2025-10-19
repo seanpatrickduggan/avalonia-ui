@@ -15,13 +15,13 @@ public static class WorkspaceDbService
 {
     private static IWorkspaceDb? _db;
     private static long _sessionId;
-    private static long _currentRunId;
+    private static long _currentOperationId;
     private static readonly ConcurrentQueue<LogWrite> _pending = new();
 
     public static IWorkspaceDb Db => _db ?? throw new InvalidOperationException("Workspace DB not initialized");
     public static long SessionId => _sessionId;
     public static long? SessionIdOrNull => _sessionId == 0 ? (long?)null : _sessionId;
-    public static long CurrentRunId => _currentRunId;
+    public static long CurrentOperationId => _currentOperationId;
 
     public static async Task InitializeAsync(CancellationToken ct = default)
     {
@@ -67,20 +67,20 @@ public static class WorkspaceDbService
         }
     }
 
-    public static async Task<long> StartRunAsync(string type, string? name = null, string? metadataJson = null, long startedAtMs = 0, CancellationToken ct = default)
+    public static async Task<long> StartOperationAsync(string type, string? name = null, string? metadataJson = null, long startedAtMs = 0, CancellationToken ct = default)
     {
-        var id = await Db.StartRunAsync(SessionId, type, name, metadataJson, startedAtMs, ct);
-        _currentRunId = id;
+        var id = await Db.StartOperationAsync(SessionId, type, name, metadataJson, startedAtMs, ct);
+        _currentOperationId = id;
         return id;
     }
 
-    public static async Task EndRunAsync(long? runId = null, string status = "succeeded", long endedAtMs = 0, CancellationToken ct = default)
+    public static async Task EndOperationAsync(long? operationId = null, string status = "succeeded", long endedAtMs = 0, CancellationToken ct = default)
     {
-        var id = runId ?? _currentRunId;
+        var id = operationId ?? _currentOperationId;
         if (id != 0)
         {
-            await Db.EndRunAsync(id, status, endedAtMs, ct);
-            if (!runId.HasValue || runId == _currentRunId) _currentRunId = 0;
+            await Db.EndOperationAsync(id, status, endedAtMs, ct);
+            if (!operationId.HasValue || operationId == _currentOperationId) _currentOperationId = 0;
         }
     }
 
@@ -90,18 +90,18 @@ public static class WorkspaceDbService
         {
             try { await _db.EndSessionAsync(_sessionId, ct); }
             catch { /* ignore on shutdown */ }
-            finally { _db.Dispose(); _db = null; _sessionId = 0; _currentRunId = 0; }
+            finally { _db.Dispose(); _db = null; _sessionId = 0; _currentOperationId = 0; }
         }
     }
 
-    // Materialize logs for a specific run to a JSONL file. Returns the output path.
-    public static async Task<string> MaterializeRunLogsAsync(long runId, string? outputPath = null, CancellationToken ct = default)
+    // Materialize logs for a specific operation to a JSONL file. Returns the output path.
+    public static async Task<string> MaterializeOperationLogsAsync(long operationId, string? outputPath = null, CancellationToken ct = default)
     {
         var workspacePath = SettingsService.Instance.WorkspaceDirectory
             ?? throw new InvalidOperationException("Workspace directory is not configured");
         var logsDir = Path.Combine(workspacePath, "logs");
         Directory.CreateDirectory(logsDir);
-        var outPath = outputPath ?? Path.Combine(logsDir, $"run-{runId}.jsonl");
+        var outPath = outputPath ?? Path.Combine(logsDir, $"operation-{operationId}.jsonl");
 
         await using var fs = new FileStream(outPath, FileMode.Create, FileAccess.Write, FileShare.Read);
         await using var sw = new StreamWriter(fs);
@@ -110,7 +110,7 @@ public static class WorkspaceDbService
         int page = 0;
         while (true)
         {
-            var rows = await Db.QueryLogsAsync(new LogQuery(RunId: runId, Page: page, PageSize: 2000), ct);
+            var rows = await Db.QueryLogsAsync(new LogQuery(OperationId: operationId, Page: page, PageSize: 2000), ct);
             if (rows.Count == 0) break;
             foreach (var row in rows)
             {
@@ -127,7 +127,7 @@ public static class WorkspaceDbService
                     subcategory = row.Subcategory,
                     message = row.Message,
                     data = data,
-                    run_id = row.RunId,
+                    operation_id = row.OperationId,
                     item_id = row.ItemId
                 };
                 var json = JsonSerializer.Serialize(line, options);
@@ -173,7 +173,7 @@ public static class WorkspaceDbService
                     subcategory = row.Subcategory,
                     message = row.Message,
                     data = data,
-                    run_id = row.RunId,
+                    operation_id = row.OperationId,
                     item_id = row.ItemId
                 };
                 var json = JsonSerializer.Serialize(line, options);
@@ -194,7 +194,31 @@ public static class WorkspaceDbService
         public string? subcategory { get; set; }
         public string? message { get; set; }
         public JsonElement? data { get; set; }
-        public long? run_id { get; set; }
+        public long? operation_id { get; set; }
         public long? item_id { get; set; }
     }
+}
+
+public sealed class WorkspaceRuntimeAdapter : FileProcessor.Core.Workspace.IWorkspaceRuntime
+{
+    public long SessionId => WorkspaceDbService.SessionId;
+    public long CurrentOperationId => WorkspaceDbService.CurrentOperationId;
+
+    public System.Threading.Tasks.Task InitializeAsync(System.Threading.CancellationToken ct = default)
+        => WorkspaceDbService.InitializeAsync(ct);
+
+    public System.Threading.Tasks.Task<long> StartOperationAsync(string type, string? name = null, string? metadataJson = null, long startedAtMs = 0, System.Threading.CancellationToken ct = default)
+        => WorkspaceDbService.StartOperationAsync(type, name, metadataJson, startedAtMs, ct);
+
+    public System.Threading.Tasks.Task EndOperationAsync(string status = "succeeded", long endedAtMs = 0, System.Threading.CancellationToken ct = default)
+        => WorkspaceDbService.EndOperationAsync(status: status, endedAtMs: endedAtMs, ct: ct);
+
+    public System.Threading.Tasks.Task<string> MaterializeOperationLogsAsync(long operationId, string? outputPath = null, System.Threading.CancellationToken ct = default)
+        => WorkspaceDbService.MaterializeOperationLogsAsync(operationId, outputPath, ct);
+
+    public System.Threading.Tasks.Task<string> MaterializeSessionLogsAsync(long sessionId, string? outputPath = null, System.Threading.CancellationToken ct = default)
+        => WorkspaceDbService.MaterializeSessionLogsAsync(sessionId, outputPath, ct);
+
+    public System.Threading.Tasks.Task ShutdownAsync(System.Threading.CancellationToken ct = default)
+        => WorkspaceDbService.ShutdownAsync(ct);
 }

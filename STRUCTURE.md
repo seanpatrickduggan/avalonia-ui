@@ -79,19 +79,19 @@ FileProcessor.sln                 # Solution file
 - `SettingsViewModel`: Application settings and preferences
 
 ### **Workspace Database**
-- **Purpose**: SQLite-based workspace store for sessions, runs, items, and logs to enable fast querying and filtering of large log files (e.g., 30k+ entries).
+- **Purpose**: SQLite-based workspace store for sessions, operations, items, and logs to enable fast querying and filtering of large log files (e.g., 30k+ entries).
 - **Key Interfaces** (`FileProcessor.Core.Workspace`):
   - `IWorkspaceDb`: Core database operations (initialize, query logs, group counts)
   - `IRunStore`: Session and run management
   - `ILogStore`: Log entry operations
-- **Schema** (`FileProcessor.Infrastructure.Workspace.WorkspaceSchema.sql`): SQLite DDL with tables for `sessions`, `runs`, `items`, and `log_entries`, including indexes for performance.
+- **Schema** (`FileProcessor.Infrastructure.Workspace.WorkspaceSchema.sql`): SQLite DDL with tables for `sessions`, `operations`, `items`, and `log_entries`, including indexes for performance.
 - **Implementation** (`FileProcessor.Infrastructure.Workspace`):
   - `SqliteWorkspaceDb`: SQLite database operations using Microsoft.Data.Sqlite with WAL mode for concurrent access.
   - `WorkspaceDbService`: Static facade for database lifecycle, session/run management.
 - **Logging Integration** (`FileProcessor.Infrastructure.Logging`):
   - `WorkspaceSqliteSink`: Serilog sink that mirrors all log events to SQLite DB for queryable storage.
   - `WorkspaceRunStructuredLogger`: Structured logging to Serilog (with DB mirroring handled by sink).
-  - Materialization: `WorkspaceDbService.MaterializeRunLogsAsync` and `MaterializeSessionLogsAsync` export logs to JSONL for portability.
+  - Materialization: `WorkspaceDbService.MaterializeOperationLogsAsync` and `MaterializeSessionLogsAsync` export logs to JSONL for portability.
 
 ## 🎯 **Benefits of This Structure**
 

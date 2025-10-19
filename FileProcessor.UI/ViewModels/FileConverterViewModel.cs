@@ -24,6 +24,7 @@ public partial class FileConverterViewModel : ViewModelBase
 {
     private readonly FileProcessingService _fileProcessingService;
     private readonly SettingsService _settingsService;
+    private readonly IOperationContext _opContext;
     private CancellationTokenSource? _checkCancellationTokenSource;
     private CancellationTokenSource? _processingCancellationTokenSource;
 
@@ -96,9 +97,10 @@ public partial class FileConverterViewModel : ViewModelBase
     private readonly ConcurrentDictionary<string, LogSeverity> _highestSeverityByFile = new();
     private readonly ConcurrentBag<ItemLogResult> _conversionItemLogResults = new();
 
-    public FileConverterViewModel()
+    public FileConverterViewModel(IOperationContext opContext)
     {
-        _fileProcessingService = new FileProcessingService();
+        _opContext = opContext;
+        _fileProcessingService = new FileProcessingService(opContext.ItemLogFactory);
         _settingsService = SettingsService.Instance;
         
         // Create manual command with explicit CanExecute control
@@ -301,7 +303,7 @@ public partial class FileConverterViewModel : ViewModelBase
         }
 
         // Start a fresh log run for this batch with descriptive name
-        LoggingService.StartNewRun("conversion");
+        await _opContext.StartNewOperationAsync("conversion");
 
         // Cancel any existing processing operation
         _processingCancellationTokenSource?.Cancel();
@@ -331,7 +333,7 @@ public partial class FileConverterViewModel : ViewModelBase
                     cancellationToken.ThrowIfCancellationRequested();
 
                     // Start per-file scoped logging
-                    using var scope = LoggingService.ItemLogFactory.Start(file.FileName);
+                    using var scope = _opContext.ItemLogFactory.Start(file.FileName);
                     var sw = System.Diagnostics.Stopwatch.StartNew();
                     FileInfo? inputInfo = null;
                     string? outputFilePath = null;
@@ -695,7 +697,7 @@ public partial class FileConverterViewModel : ViewModelBase
             "filesize" => SortAscending 
                 ? Files.OrderBy(f => GetFileSizeForSorting(f.FileSize)) 
                 : Files.OrderByDescending(f => GetFileSizeForSorting(f.FileSize)),
-            "lastModified" => SortAscending 
+            "lastmodified" => SortAscending 
                 ? Files.OrderBy(f => DateTime.TryParse(f.LastModified, out var date) ? date : DateTime.MinValue) 
                 : Files.OrderByDescending(f => DateTime.TryParse(f.LastModified, out var date) ? date : DateTime.MinValue),
             "status" => SortAscending 

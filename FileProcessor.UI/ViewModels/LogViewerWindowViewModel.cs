@@ -10,13 +10,17 @@ using System.Linq;
 using Avalonia.Threading;
 using System.Collections.Generic;
 using System.Text;
+using FileProcessor.UI.Services;
+using FileProcessor.Core.Workspace; // added
+// using FileProcessor.Infrastructure.Workspace; // replaced by IWorkspaceRuntime
+using System.Threading.Tasks; // added for Task
 
 namespace FileProcessor.UI.ViewModels;
 
 public partial class LogViewerWindowViewModel : ObservableObject
 {
     [ObservableProperty]
-    private string _logFilePath = LoggingService.LogFilePath;
+    private string _logFilePath = string.Empty;
 
     [ObservableProperty]
     private ObservableCollection<ItemLogEntry> _entries = new(); // flat (legacy)
@@ -57,39 +61,150 @@ public partial class LogViewerWindowViewModel : ObservableObject
     [ObservableProperty]
     private string _combinedText = string.Empty; // aggregated view
 
+    // Backend selection
+    [ObservableProperty]
+    private bool _useDatabase = true; // toggle between DB and JSONL
+
     private long _lastLength;
     private readonly DispatcherTimer _timer;
     private readonly List<ItemLogEntry> _all = new();
+
+    // Debounce timer for filters/search
+    private readonly DispatcherTimer _filterTimer;
+
+    // DB reader state
+    private ILogReader? _dbReader;
+    private long _lastTsMsDb = 0;
+
+    // Injected workspace runtime (via CompositionRoot)
+    private readonly IWorkspaceRuntime _runtime;
 
     public IRelayCommand ExpandAllCommand { get; }
     public IRelayCommand CollapseAllCommand { get; }
 
     public LogViewerWindowViewModel()
     {
-        LoggingService.LogFileChanged += OnLogFileChanged; // subscribe
-        LoadInitial();
+        var op = CompositionRoot.Get<IOperationContext>();
+        LogFilePath = op.LogFilePath;
+        _runtime = CompositionRoot.Get<IWorkspaceRuntime>();
+        // default to DB if available (current operation/session exists)
+        UseDatabase = true;
+        InitializeBackend();
         _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(700) };
-        _timer.Tick += (_, _) => TailUpdate();
+        _timer.Tick += async (_, _) => await OnTickAsync();
         _timer.Start();
+
+        _filterTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+        _filterTimer.Tick += (_, _) => { _filterTimer.Stop(); ApplyFilters(); };
+
         ExpandAllCommand = new RelayCommand(() => { foreach (var g in Groups) g.IsExpanded = true; });
         CollapseAllCommand = new RelayCommand(() => { foreach (var g in Groups) g.IsExpanded = false; });
     }
 
-    private void OnLogFileChanged()
+    partial void OnFilterTextChanged(string value) => DebounceFilters();
+    partial void OnSelectedCategoryChanged(string? value) { UpdateSubcategoryList(); DebounceFilters(); }
+    partial void OnSelectedSubcategoryChanged(string? value) => DebounceFilters();
+    partial void OnShowTraceChanged(bool value) => DebounceFilters();
+    partial void OnShowDebugChanged(bool value) => DebounceFilters();
+    partial void OnShowInfoChanged(bool value) => DebounceFilters();
+    partial void OnShowWarningChanged(bool value) => DebounceFilters();
+    partial void OnShowErrorChanged(bool value) => DebounceFilters();
+    partial void OnShowCriticalChanged(bool value) => DebounceFilters();
+    partial void OnUseDatabaseChanged(bool value)
     {
-        LogFilePath = LoggingService.LogFilePath;
-        LoadInitial();
+        InitializeBackend();
     }
 
-    partial void OnFilterTextChanged(string value) => ApplyFilters();
-    partial void OnSelectedCategoryChanged(string? value) { UpdateSubcategoryList(); ApplyFilters(); }
-    partial void OnSelectedSubcategoryChanged(string? value) => ApplyFilters();
-    partial void OnShowTraceChanged(bool value) => ApplyFilters();
-    partial void OnShowDebugChanged(bool value) => ApplyFilters();
-    partial void OnShowInfoChanged(bool value) => ApplyFilters();
-    partial void OnShowWarningChanged(bool value) => ApplyFilters();
-    partial void OnShowErrorChanged(bool value) => ApplyFilters();
-    partial void OnShowCriticalChanged(bool value) => ApplyFilters();
+    private void DebounceFilters()
+    {
+        _filterTimer.Stop();
+        _filterTimer.Start();
+    }
+
+    private void InitializeBackend()
+    {
+        _all.Clear();
+        Entries.Clear();
+        Groups.Clear();
+        _lastLength = 0;
+        _lastTsMsDb = 0;
+        if (UseDatabase)
+        {
+            _dbReader = CompositionRoot.Get<ILogReaderFactory>().ForDatabase();
+            // initial load from DB
+            _ = QueryAndAppendDbAsync(initial: true);
+        }
+        else
+        {
+            // fallback to JSONL file tailing (Serilog compact JSON)
+            LoadInitial();
+        }
+    }
+
+    private LogQuery BuildQuery(long fromTsMs = 0)
+    {
+        int? min = null, max = null;
+        if (!ShowTrace) min = (int)LogSeverity.Debug;
+        if (!ShowDebug && (min ?? 0) <= (int)LogSeverity.Debug) min = (int)LogSeverity.Info;
+        if (!ShowInfo && (min ?? 0) <= (int)LogSeverity.Info) min = (int)LogSeverity.Warning;
+        if (!ShowWarning && (min ?? 0) <= (int)LogSeverity.Warning) min = (int)LogSeverity.Error;
+        if (!ShowError && (min ?? 0) <= (int)LogSeverity.Error) min = (int)LogSeverity.Critical;
+        // max remains null unless user adds UI for it
+
+        long? opId = _runtime.CurrentOperationId == 0 ? (long?)null : _runtime.CurrentOperationId;
+        long? sessionId = _runtime.SessionId == 0 ? (long?)null : _runtime.SessionId;
+
+        return new LogQuery(
+            OperationId: opId,
+            ItemId: null,
+            MinLevel: min,
+            MaxLevel: max,
+            Category: SelectedCategory,
+            Subcategory: SelectedSubcategory,
+            TextContains: string.IsNullOrWhiteSpace(FilterText) ? null : FilterText,
+            Page: 0,
+            PageSize: 2000,
+            FromTsMs: fromTsMs > 0 ? fromTsMs : null,
+            ToTsMs: null,
+            SessionId: opId == null ? sessionId : null);
+    }
+
+    private async Task OnTickAsync()
+    {
+        if (UseDatabase)
+        {
+            if (!Tail) return;
+            await QueryAndAppendDbAsync(initial: false);
+        }
+        else
+        {
+            TailUpdate();
+        }
+    }
+
+    private async Task QueryAndAppendDbAsync(bool initial)
+    {
+        if (_dbReader == null) return;
+        var q = BuildQuery(fromTsMs: _lastTsMsDb + 1);
+        IReadOnlyList<LogRow> rows;
+        try { rows = await _dbReader.QueryLogsAsync(q); } catch { return; }
+        if (rows.Count == 0 && !initial) return;
+        bool added = false;
+        foreach (var r in rows)
+        {
+            var ts = DateTimeOffset.FromUnixTimeMilliseconds(r.TsMs).UtcDateTime;
+            var sev = (LogSeverity)Math.Clamp(r.Level, 0, 5);
+            var entry = new ItemLogEntry(ts, sev, r.Category ?? string.Empty, r.Subcategory ?? string.Empty, r.Message ?? string.Empty, r.DataJson);
+            _all.Add(entry);
+            if (r.TsMs > _lastTsMsDb) _lastTsMsDb = r.TsMs;
+            added = true;
+        }
+        if (added)
+        {
+            RebuildCategoryLists();
+            ApplyFilters(autoScroll: true);
+        }
+    }
 
     private void LoadInitial()
     {
@@ -110,8 +225,17 @@ public partial class LogViewerWindowViewModel : ObservableObject
 
     private void TailUpdate()
     {
+        // Detect log file path changes (new operation)
+        var op = CompositionRoot.Get<IOperationContext>();
+        if (!string.Equals(op.LogFilePath, LogFilePath, StringComparison.Ordinal))
+        {
+            LogFilePath = op.LogFilePath;
+            LoadInitial();
+            return;
+        }
+
         if (!Tail) return;
-        if (!File.Exists(LogFilePath)) return;
+        if (string.IsNullOrEmpty(LogFilePath) || !File.Exists(LogFilePath)) return;
         var info = new FileInfo(LogFilePath);
         if (info.Length == _lastLength) return; // no growth
         using var fs = new FileStream(LogFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);

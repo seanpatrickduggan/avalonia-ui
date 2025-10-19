@@ -6,11 +6,13 @@ using System.Threading;
 using System.Threading.Tasks;
 using FileProcessor.Core.Workspace;
 using Microsoft.Data.Sqlite;
+using Serilog; // added for user notifications
 
 namespace FileProcessor.Infrastructure.Workspace;
 
 public sealed class SqliteWorkspaceDb : IWorkspaceDb
 {
+    private const int CurrentSchemaVersion = 2; // bump when schema changes
     private SqliteConnection? _conn;
 
     public async Task InitializeAsync(string dbPath, CancellationToken ct = default)
@@ -29,6 +31,61 @@ public sealed class SqliteWorkspaceDb : IWorkspaceDb
         {
             pragma.CommandText = "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA foreign_keys=ON;";
             await pragma.ExecuteNonQueryAsync(ct);
+        }
+
+        // Schema version gate: recreate DB if version mismatches (prototype behavior)
+        int existingVer = -1;
+        try
+        {
+            using var chk = _conn.CreateCommand();
+            chk.CommandText = "SELECT version FROM schema_info LIMIT 1";
+            var obj = await chk.ExecuteScalarAsync(ct);
+            if (obj is long l) existingVer = (int)l;
+        }
+        catch { existingVer = -1; }
+
+        if (existingVer != CurrentSchemaVersion)
+        {
+            try { await _conn.CloseAsync(); } catch { }
+            _conn.Dispose();
+            try { if (File.Exists(dbPath)) File.Delete(dbPath); } catch { /* ignore */ }
+
+            _conn = new SqliteConnection(cs);
+            await _conn.OpenAsync(ct);
+            using (var pragma2 = _conn.CreateCommand())
+            {
+                pragma2.CommandText = "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA foreign_keys=ON;";
+                await pragma2.ExecuteNonQueryAsync(ct);
+            }
+
+            var schemaPathNew = Path.Combine(AppContext.BaseDirectory, "Workspace", "WorkspaceSchema.sql");
+            var sqlNew = await File.ReadAllTextAsync(schemaPathNew, ct);
+            using (var cmdNew = _conn.CreateCommand())
+            {
+                cmdNew.CommandText = sqlNew;
+                await cmdNew.ExecuteNonQueryAsync(ct);
+            }
+
+            using (var verCmd = _conn.CreateCommand())
+            {
+                verCmd.CommandText = "CREATE TABLE IF NOT EXISTS schema_info(version INTEGER NOT NULL); DELETE FROM schema_info; INSERT INTO schema_info(version) VALUES($v);";
+                verCmd.Parameters.AddWithValue("$v", CurrentSchemaVersion);
+                await verCmd.ExecuteNonQueryAsync(ct);
+            }
+
+            var noticePath = Path.Combine(Path.GetDirectoryName(dbPath)!, "workspace-schema-reset.txt");
+            var msg = $"Workspace database was recreated due to schema version mismatch (found {existingVer}, expected {CurrentSchemaVersion}). A fresh schema has been applied.";
+            try { await File.WriteAllTextAsync(noticePath, $"{DateTime.UtcNow:o} {msg}\nDB Path: {dbPath}\n", ct); } catch { }
+            Log.Warning(msg);
+            return;
+        }
+
+        // Ensure schema_info exists and is set to current version
+        using (var ensure = _conn.CreateCommand())
+        {
+            ensure.CommandText = "CREATE TABLE IF NOT EXISTS schema_info(version INTEGER NOT NULL); DELETE FROM schema_info; INSERT INTO schema_info(version) VALUES($v);";
+            ensure.Parameters.AddWithValue("$v", CurrentSchemaVersion);
+            await ensure.ExecuteNonQueryAsync(ct);
         }
 
         var schemaPath = Path.Combine(AppContext.BaseDirectory, "Workspace", "WorkspaceSchema.sql");
@@ -63,10 +120,11 @@ public sealed class SqliteWorkspaceDb : IWorkspaceDb
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
-    public async Task<long> StartRunAsync(long sessionId, string type, string? name = null, string? metadataJson = null, long startedAtMs = 0, CancellationToken ct = default)
+    // Operation APIs mapped to operations table
+    public async Task<long> StartOperationAsync(long sessionId, string type, string? name = null, string? metadataJson = null, long startedAtMs = 0, CancellationToken ct = default)
     {
         using var cmd = _conn!.CreateCommand();
-        cmd.CommandText = "INSERT INTO runs(session_id,type,status,started_at_ms,name,metadata_json) VALUES($s,$ty,'running',$t,$n,$m); SELECT last_insert_rowid();";
+        cmd.CommandText = "INSERT INTO operations(session_id,type,status,started_at_ms,name,metadata_json) VALUES($s,$ty,'running',$t,$n,$m); SELECT last_insert_rowid();";
         cmd.Parameters.AddWithValue("$s", sessionId);
         cmd.Parameters.AddWithValue("$ty", type);
         cmd.Parameters.AddWithValue("$t", startedAtMs == 0 ? NowMs() : startedAtMs);
@@ -75,25 +133,25 @@ public sealed class SqliteWorkspaceDb : IWorkspaceDb
         return (long)(await cmd.ExecuteScalarAsync(ct))!;
     }
 
-    public async Task EndRunAsync(long runId, string status, long endedAtMs = 0, CancellationToken ct = default)
+    public async Task EndOperationAsync(long operationId, string status, long endedAtMs = 0, CancellationToken ct = default)
     {
         using var cmd = _conn!.CreateCommand();
-        cmd.CommandText = "UPDATE runs SET status=$st, ended_at_ms=$t WHERE id=$id";
+        cmd.CommandText = "UPDATE operations SET status=$st, ended_at_ms=$t WHERE id=$id";
         cmd.Parameters.AddWithValue("$st", status);
         cmd.Parameters.AddWithValue("$t", endedAtMs == 0 ? NowMs() : endedAtMs);
-        cmd.Parameters.AddWithValue("$id", runId);
+        cmd.Parameters.AddWithValue("$id", operationId);
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
-    public async Task<long> UpsertItemAsync(long runId, string externalId, string status, int highestSeverity = 2, long startedAtMs = 0, long endedAtMs = 0, string? metricsJson = null, CancellationToken ct = default)
+    public async Task<long> UpsertItemAsync(long operationId, string externalId, string status, int highestSeverity = 2, long startedAtMs = 0, long endedAtMs = 0, string? metricsJson = null, CancellationToken ct = default)
     {
         using var tx = await _conn!.BeginTransactionAsync(ct);
         long id;
         using (var find = _conn.CreateCommand())
         {
             find.Transaction = (SqliteTransaction)tx;
-            find.CommandText = "SELECT id FROM items WHERE run_id=$r AND external_id=$e LIMIT 1";
-            find.Parameters.AddWithValue("$r", runId);
+            find.CommandText = "SELECT id FROM items WHERE operation_id=$r AND external_id=$e LIMIT 1";
+            find.Parameters.AddWithValue("$r", operationId);
             find.Parameters.AddWithValue("$e", externalId);
             var res = await find.ExecuteScalarAsync(ct);
             id = res is long l ? l : 0L;
@@ -102,8 +160,8 @@ public sealed class SqliteWorkspaceDb : IWorkspaceDb
         {
             using var ins = _conn.CreateCommand();
             ins.Transaction = (SqliteTransaction)tx;
-            ins.CommandText = "INSERT INTO items(run_id, external_id, status, highest_severity, started_at_ms, ended_at_ms, metrics_json) VALUES($r,$e,$s,$h,$st,$en,$m); SELECT last_insert_rowid();";
-            ins.Parameters.AddWithValue("$r", runId);
+            ins.CommandText = "INSERT INTO items(operation_id, external_id, status, highest_severity, started_at_ms, ended_at_ms, metrics_json) VALUES($r,$e,$s,$h,$st,$en,$m); SELECT last_insert_rowid();";
+            ins.Parameters.AddWithValue("$r", operationId);
             ins.Parameters.AddWithValue("$e", externalId);
             ins.Parameters.AddWithValue("$s", status);
             ins.Parameters.AddWithValue("$h", highestSeverity);
@@ -130,8 +188,8 @@ public sealed class SqliteWorkspaceDb : IWorkspaceDb
     public async Task<long> AppendLogAsync(LogWrite log, CancellationToken ct = default)
     {
         using var cmd = _conn!.CreateCommand();
-        cmd.CommandText = @"INSERT INTO log_entries(ts_ms, level, category, subcategory, message, data_json, session_id, run_id, item_id, source)
-                             VALUES($ts,$lv,$c,$s,$m,$d,$sid,$rid,$iid,$src); SELECT last_insert_rowid();";
+        cmd.CommandText = @"INSERT INTO log_entries(ts_ms, level, category, subcategory, message, data_json, session_id, operation_id, item_id, source)
+                             VALUES($ts,$lv,$c,$s,$m,$d,$sid,$oid,$iid,$src); SELECT last_insert_rowid();";
         cmd.Parameters.AddWithValue("$ts", log.TsMs);
         cmd.Parameters.AddWithValue("$lv", log.Level);
         cmd.Parameters.AddWithValue("$c", (object?)log.Category ?? DBNull.Value);
@@ -139,7 +197,7 @@ public sealed class SqliteWorkspaceDb : IWorkspaceDb
         cmd.Parameters.AddWithValue("$m", (object?)log.Message ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$d", (object?)log.DataJson ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$sid", (object?)log.SessionId ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("$rid", (object?)log.RunId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$oid", (object?)log.OperationId ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$iid", (object?)log.ItemId ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$src", (object?)log.Source ?? DBNull.Value);
         var id = (long)(await cmd.ExecuteScalarAsync(ct))!;
@@ -165,7 +223,7 @@ public sealed class SqliteWorkspaceDb : IWorkspaceDb
     {
         var where = BuildWhere(q, out var pars);
         using var cmd = _conn!.CreateCommand();
-        cmd.CommandText = $"SELECT id, ts_ms, level, category, subcategory, message, data_json, run_id, item_id FROM log_entries {where} ORDER BY ts_ms LIMIT $lim OFFSET $off";
+        cmd.CommandText = $"SELECT id, ts_ms, level, category, subcategory, message, data_json, operation_id, item_id FROM log_entries {where} ORDER BY ts_ms LIMIT $lim OFFSET $off";
         foreach (var p in pars) cmd.Parameters.Add(p);
         cmd.Parameters.AddWithValue("$lim", q.PageSize);
         cmd.Parameters.AddWithValue("$off", q.Page * q.PageSize);
@@ -191,7 +249,7 @@ public sealed class SqliteWorkspaceDb : IWorkspaceDb
     {
         var parts = new List<string>();
         pars = new List<SqliteParameter>();
-        if (q.RunId is long rid) { parts.Add("run_id=$rid"); pars.Add(new SqliteParameter("$rid", rid)); }
+        if (q.OperationId is long oid) { parts.Add("operation_id=$oid"); pars.Add(new SqliteParameter("$oid", oid)); }
         if (q.ItemId is long iid) { parts.Add("item_id=$iid"); pars.Add(new SqliteParameter("$iid", iid)); }
         if (q.MinLevel is int min) { parts.Add("level >= $min"); pars.Add(new SqliteParameter("$min", min)); }
         if (q.MaxLevel is int max) { parts.Add("level <= $max"); pars.Add(new SqliteParameter("$max", max)); }

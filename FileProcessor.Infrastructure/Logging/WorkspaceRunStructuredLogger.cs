@@ -6,21 +6,21 @@ using Serilog.Events;
 namespace FileProcessor.Infrastructure.Logging;
 
 // Logs to Serilog; DB mirroring is handled by the WorkspaceSqliteSink.
-public sealed class WorkspaceRunStructuredLogger : IRunStructuredLogger
+public sealed class WorkspaceOperationStructuredLogger : IOperationStructuredLogger
 {
     private readonly ILogger _logger;
 
-    public WorkspaceRunStructuredLogger(ILogger logger)
+    public WorkspaceOperationStructuredLogger(ILogger logger)
     {
         _logger = logger;
     }
 
-    public void Log(Guid runId, string? batchType, string itemId, LogSeverity level, string category, string subcategory, string message, object? data = null)
+    public void Log(Guid operationId, string? operationType, string itemId, LogSeverity level, string category, string subcategory, string message, object? data = null)
     {
         var evtLevel = MapLevel(level);
         var lg = _logger
-            .ForContext("run", runId)
-            .ForContext("batch", batchType)
+            .ForContext("operation", operationId)
+            .ForContext("operation_type", operationType)
             .ForContext("item", itemId)
             .ForContext("cat", category)
             .ForContext("sub", subcategory)

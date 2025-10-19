@@ -66,8 +66,20 @@ public interface IItemLogFactory
     IItemLogScope Start(string itemId);
 }
 
-// Placeholder for future per-run structured logging integration.
-public interface IRunStructuredLogger
+// Operation-scoped structured logger abstraction
+public interface IOperationStructuredLogger
 {
-    void Log(Guid runId, string? batchType, string itemId, LogSeverity level, string category, string subcategory, string message, object? data = null);
+    void Log(Guid operationId, string? operationType, string itemId, LogSeverity level, string category, string subcategory, string message, object? data = null);
+}
+
+public interface IOperationContext
+{
+    string OperationId { get; }
+    string LogFilePath { get; }
+    IItemLogFactory ItemLogFactory { get; }
+    IOperationStructuredLogger OperationLogger { get; }
+
+    void Initialize(Serilog.ILogger rootLogger, string operationId, string logFilePath);
+    System.Threading.Tasks.Task StartNewOperationAsync(string? operationType = null);
+    System.Threading.Tasks.Task EndCurrentOperationAsync(string status = "succeeded");
 }

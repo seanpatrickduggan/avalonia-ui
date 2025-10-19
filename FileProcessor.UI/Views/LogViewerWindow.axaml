@@ -11,16 +11,39 @@
   <Window.DataContext>
     <vm:LogViewerWindowViewModel />
   </Window.DataContext>
+  <Window.Styles>
+    <!-- Make ListBox look non-selectable -->
+    <Style Selector="ListBox">
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="Background" Value="Transparent"/>
+    </Style>
+    <Style Selector="ListBoxItem">
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="Padding" Value="0"/>
+      <Setter Property="Background" Value="Transparent"/>
+    </Style>
+    <Style Selector="ListBoxItem:selected">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="BorderBrush" Value="Transparent"/>
+    </Style>
+    <Style Selector="ListBoxItem:pointerover">
+      <Setter Property="Background" Value="Transparent"/>
+    </Style>
+    <Style Selector="ListBoxItem:focus">
+      <Setter Property="Background" Value="Transparent"/>
+    </Style>
+  </Window.Styles>
   <Window.Resources>
     <conv:BoolToExpandGlyphConverter x:Key="BoolToExpandGlyphConverter" />
   </Window.Resources>
   <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="6" Margin="12">
     <!-- Header -->
     <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-      <TextBlock Text="Run Log:" VerticalAlignment="Center"/>
+      <TextBlock Text="Log:" VerticalAlignment="Center"/>
       <TextBox Text="{Binding LogFilePath}" Width="560" IsReadOnly="True" FontWeight="Bold" Classes="monospace"/>
       <Button Content="Copy" Click="CopyPath_Click"/>
       <CheckBox Content="Tail" IsChecked="{Binding Tail}" Margin="12,0,0,0"/>
+      <CheckBox Content="Use DB" IsChecked="{Binding UseDatabase}" Margin="12,0,0,0"/>
     </StackPanel>
     <!-- Filters (row 1) -->
     <WrapPanel Grid.Row="1" VerticalAlignment="Center">
@@ -43,51 +66,59 @@
     </StackPanel>
     <!-- Grouped and expandable list now in row 3 -->
     <Border Grid.Row="3" BorderThickness="1" CornerRadius="4" Padding="4">
-      <ScrollViewer>
-        <ItemsControl ItemsSource="{Binding Groups}">
-          <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="vm:LogGroupViewModel">
-              <StackPanel Margin="0,0,0,6">
-                <Border Background="#222" CornerRadius="4" Padding="6" Margin="0,0,0,2">
-                  <DockPanel>
-                    <Button Width="24" Height="24" Command="{Binding ToggleCommand}" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" FontWeight="Bold" FontSize="16" Content="{Binding IsExpanded, Converter={StaticResource BoolToExpandGlyphConverter}}"/>
-                    <TextBlock Margin="6,0,0,0" VerticalAlignment="Center" FontWeight="Bold">
-                      <Run Text="{Binding Category}"/>
-                      <Run Text="/"/>
-                      <Run Text="{Binding Subcategory}"/>
-                      <Run Text="  "/>
-                      <Run Text="{Binding Count}"/>
-                      <Run Text=" entries"/>
-                      <Run Text="  ["/>
-                      <Run Text="{Binding HighestSeverity}"/>
-                      <Run Text="]"/>
-                      <Run Text="  "/>
-                      <Run Text="{Binding SeveritySummary}"/>
-                    </TextBlock>
-                  </DockPanel>
-                </Border>
-                <ItemsControl ItemsSource="{Binding Entries}" IsVisible="{Binding IsExpanded}">
-                  <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="logging:ItemLogEntry">
-                      <Border Margin="4,0" Padding="2" Background="#1b1b1b" CornerRadius="3">
-                        <TextBox FontFamily="monospace" FontSize="13" BorderThickness="0" Background="Transparent" IsReadOnly="True" TextWrapping="Wrap" Padding="0">
-                          <TextBox.Text>
-                            <MultiBinding StringFormat="{}{0:HH:mm:ss.fff} | {1} | {2}">
-                              <Binding Path="TsUtc"/>
-                              <Binding Path="Level"/>
-                              <Binding Path="Message"/>
-                            </MultiBinding>
-                          </TextBox.Text>
-                        </TextBox>
-                      </Border>
-                    </DataTemplate>
-                  </ItemsControl.ItemTemplate>
-                </ItemsControl>
-              </StackPanel>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
-      </ScrollViewer>
+      <ListBox ItemsSource="{Binding Groups}" SelectionMode="Single">
+        <ListBox.ItemsPanel>
+          <ItemsPanelTemplate>
+            <VirtualizingStackPanel/>
+          </ItemsPanelTemplate>
+        </ListBox.ItemsPanel>
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="vm:LogGroupViewModel">
+            <StackPanel Margin="0,0,0,6">
+              <Border Background="#222" CornerRadius="4" Padding="6" Margin="0,0,0,2">
+                <DockPanel>
+                  <Button Width="24" Height="24" Command="{Binding ToggleCommand}" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" FontWeight="Bold" FontSize="16" Content="{Binding IsExpanded, Converter={StaticResource BoolToExpandGlyphConverter}}"/>
+                  <TextBlock Margin="6,0,0,0" VerticalAlignment="Center" FontWeight="Bold">
+                    <Run Text="{Binding Category}"/>
+                    <Run Text="/"/>
+                    <Run Text="{Binding Subcategory}"/>
+                    <Run Text="  "/>
+                    <Run Text="{Binding Count}"/>
+                    <Run Text=" entries"/>
+                    <Run Text="  ["/>
+                    <Run Text="{Binding HighestSeverity}"/>
+                    <Run Text="]"/>
+                    <Run Text="  "/>
+                    <Run Text="{Binding SeveritySummary}"/>
+                  </TextBlock>
+                </DockPanel>
+              </Border>
+              <ListBox ItemsSource="{Binding Entries}" IsVisible="{Binding IsExpanded}" SelectionMode="Single">
+                <ListBox.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <VirtualizingStackPanel/>
+                  </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="logging:ItemLogEntry">
+                    <Border Margin="4,0" Padding="2" Background="#1b1b1b" CornerRadius="3">
+                      <TextBox FontFamily="monospace" FontSize="13" BorderThickness="0" Background="Transparent" IsReadOnly="True" TextWrapping="Wrap" Padding="0">
+                        <TextBox.Text>
+                          <MultiBinding StringFormat="{}{0:HH:mm:ss.fff} | {1} | {2}">
+                            <Binding Path="TsUtc"/>
+                            <Binding Path="Level"/>
+                            <Binding Path="Message"/>
+                          </MultiBinding>
+                        </TextBox.Text>
+                      </TextBox>
+                    </Border>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </StackPanel>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
     </Border>
   </Grid>
 </Window>

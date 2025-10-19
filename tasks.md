@@ -1,45 +1,45 @@
-# Running Tasks
+# All Tasks
 
-This document tracks ongoing and planned tasks for the FileProcessor project.
+This document tracks upcoming and planned tasks for the FileProcessor project.
 
-## Current Tasks
+## Current Task Pointer
+See `task-current.md` for the single, focused current task in progress.
 
-### 1. Documentation Pass
-- **README.md**: Update with comprehensive project overview, setup instructions, architecture diagram, and usage examples.
-- **Class/Function Docs**: Add XML documentation comments to all public classes, methods, and properties across Core, Infrastructure, and UI projects. Ensure consistency and completeness.
+## Architecture Roadmap
 
-### 2. Log Viewer Support for Database or JSONL Input
-- **Database Querying**: Implement LogViewer.UI to query logs from SQLite workspace DB instead of parsing JSONL files directly.
-  - Add background filtering/debouncing for performance.
-  - Implement UI virtualization for large log sets.
-  - Support switching between DB and JSONL sources (e.g., for offline viewing).
-- **Fallback to JSONL**: Ensure LogViewer can still load and display JSONL files when DB is unavailable or for portability.
-- **Integration**: Wire into main UI for opening log viewers from workspace runs/sessions.
+1) Architecture Hardening (Core purity, DI, lifecycle, concurrency)
+- Purge Serilog from Core; move adapters to Infrastructure.
+- Refactor `WorkspaceSqliteSink` to use DI (no static access).
+- Remove service locator usage in ViewModels; use constructor injection.
+- Centralize init/shutdown; ensure proper disposal/async disposal.
+- Introduce bounded background writer for DB appends; propagate CancellationToken.
+- Add simple cross-cutting providers (TimeProvider, FileSystem) for testability.
 
-### 3. Re-Audit Architecture
-- **Clean Architecture Review**: Verify adherence to separation of concerns (UI, Core, Infrastructure).
-- **Dependency Injection**: Evaluate adding DI container (e.g., Microsoft.Extensions.DependencyInjection) for better testability and service management.
-- **Performance**: Audit DB queries, logging overhead, and UI responsiveness.
-- **Scalability**: Assess for larger workspaces (e.g., 100k+ logs) and potential optimizations.
-- **Security**: Review data handling, especially in workspace DB and logging.
+## Upcoming Tasks
 
-## Completed Tasks
+2) Documentation Pass
+- Add XML docs across Core/Infra/UI; start with workspace abstractions and Infra DB/logging classes.
 
-- **SQLite Workspace DB Implementation**: Schema, services, and logging integration.
-- **Dual Logging**: Serilog to JSONL + SQLite mirroring via custom sink.
-- **Materialization**: Export logs to JSONL at run/session end for portability.
-- **Startup Fixes**: Async DB init, buffering pre-init logs.
-- **Build Fixes**: Resolved compilation errors in logging sink.
+3) Tests and Performance
+- Unit tests for `SqliteWorkspaceDb` queries and materialization.
+- Validate indexes and query plans at 100k+ logs; tune PageSize/add indexes as needed.
 
-## Backlog / Future Tasks
+4) Telemetry & Health (lightweight)
+- Record init metrics (duration, error) and optional sink health.
 
-- **UI Enhancements**: Improve main window with workspace management, run history, and log viewer integration.
-- **Testing**: Add unit tests for Core/Infrastructure, integration tests for UI.
-- **Packaging**: Setup for distribution (e.g., via Nix, Docker).
-- **Performance Monitoring**: Add metrics/logging for DB operations and UI load times.
+5) Packaging
+- Prepare distribution via Nix/Docker; document runtime dependencies.
 
-## Notes
+6) UI Enhancements
+- Run history and quick-open log viewers; polish visuals and accessibility.
 
-- Prioritize log viewer DB support as it directly addresses the original performance issue with large logs.
-- Documentation should be updated incrementally as features are added.
-- Re-audit after log viewer completion to ensure architecture scales.
+## Future Ideas
+- Move Serilog adapter entirely out of Core; consider separate Infra.Logging package.
+- Add integration tests for UI flows.
+
+## Completed (recent)
+- SQLite workspace DB with operations schema and version gate.
+- Dual logging (JSONL + SQLite) via custom sink.
+- Log viewer with DB/JSONL backends, virtualization, debounce, tailing.
+- DI adoption and removal of static `WorkspaceDbService` from UI/Infra.
+- Startup health banner and commands.

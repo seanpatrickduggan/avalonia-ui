@@ -15,10 +15,6 @@ namespace FileProcessor.UI.Services
                 {
                     var targetTheme = isDarkMode ? ThemeVariant.Dark : ThemeVariant.Light;
                     Application.Current.RequestedThemeVariant = targetTheme;
-                    
-                    // Debug output
-                    System.Diagnostics.Debug.WriteLine($"Theme changed to: {targetTheme}");
-                    System.Diagnostics.Debug.WriteLine($"Current theme: {Application.Current.RequestedThemeVariant}");
                 }
                 else
                 {

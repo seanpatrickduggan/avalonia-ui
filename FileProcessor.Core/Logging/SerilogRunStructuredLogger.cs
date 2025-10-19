@@ -4,21 +4,22 @@ using Serilog.Events;
 
 namespace FileProcessor.Core.Logging;
 
-public sealed class SerilogRunStructuredLogger : IRunStructuredLogger
+// Obsolete: was run-based; now operation-based Serilog adapter kept in Core for convenience.
+public sealed class SerilogOperationStructuredLogger : IOperationStructuredLogger
 {
     private readonly ILogger _logger;
 
-    public SerilogRunStructuredLogger(ILogger logger)
+    public SerilogOperationStructuredLogger(ILogger logger)
     {
         _logger = logger;
     }
 
-    public void Log(Guid runId, string? batchType, string itemId, LogSeverity level, string category, string subcategory, string message, object? data = null)
+    public void Log(Guid operationId, string? operationType, string itemId, LogSeverity level, string category, string subcategory, string message, object? data = null)
     {
         var evtLevel = MapLevel(level);
         var lg = _logger
-            .ForContext("run", runId)
-            .ForContext("batch", batchType)
+            .ForContext("operation", operationId)
+            .ForContext("operation_type", operationType)
             .ForContext("item", itemId)
             .ForContext("cat", category)
             .ForContext("sub", subcategory)

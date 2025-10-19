@@ -11,22 +11,22 @@ internal sealed class InMemoryItemLogScope : IItemLogScope
 {
     private readonly List<ItemLogEntry> _entries;
     private readonly ItemLogOptions _options;
-    private readonly IRunStructuredLogger? _runLogger;
-    private readonly Guid _runId;
-    private readonly string? _batchType;
+    private readonly IOperationStructuredLogger? _opLogger;
+    private readonly Guid _operationId;
+    private readonly string? _operationType;
     private bool _disposed;
     private bool _spilled;
     private string? _spillFile;
     private LogSeverity _highest = LogSeverity.Info;
     private readonly Dictionary<LogSeverity, int> _levelCounts = new();
 
-    public InMemoryItemLogScope(string itemId, ItemLogOptions options, Guid runId, string? batchType, IRunStructuredLogger? runLogger)
+    public InMemoryItemLogScope(string itemId, ItemLogOptions options, Guid operationId, string? operationType, IOperationStructuredLogger? opLogger)
     {
         ItemId = itemId;
         _options = options;
-        _runId = runId;
-        _batchType = batchType;
-        _runLogger = runLogger;
+        _operationId = operationId;
+        _operationType = operationType;
+        _opLogger = opLogger;
         _entries = new List<ItemLogEntry>(options.InitialCapacity);
     }
 
@@ -39,8 +39,8 @@ internal sealed class InMemoryItemLogScope : IItemLogScope
         if (_disposed) throw new ObjectDisposedException(nameof(InMemoryItemLogScope));
         if (_spilled && _options.Overflow == ItemLogOverflowPolicy.SpillToDisk)
         {
-            // Still forward to run logger even if local spill done.
-            _runLogger?.Log(_runId, _batchType, ItemId, level, category, subcategory, message, data);
+            // Still forward to operation logger even if local spill done.
+            _opLogger?.Log(_operationId, _operationType, ItemId, level, category, subcategory, message, data);
             UpdateHighest(level);
             IncrementCount(level); // counts remain even if not in memory list
             AppendToSpill(level, category, subcategory, message, data);
@@ -68,7 +68,7 @@ internal sealed class InMemoryItemLogScope : IItemLogScope
         UpdateHighest(level);
         IncrementCount(level);
 
-        _runLogger?.Log(_runId, _batchType, ItemId, level, category, subcategory, message, data);
+        _opLogger?.Log(_operationId, _operationType, ItemId, level, category, subcategory, message, data);
     }
 
     private void UpdateHighest(LogSeverity level)
@@ -146,20 +146,20 @@ internal sealed class InMemoryItemLogScope : IItemLogScope
 public sealed class ItemLogFactory : IItemLogFactory
 {
     private readonly ItemLogOptions _options;
-    private readonly IRunStructuredLogger? _runLogger;
-    private readonly Func<Guid> _runIdProvider;
-    private readonly Func<string?> _batchTypeProvider;
+    private readonly IOperationStructuredLogger? _opLogger;
+    private readonly Func<Guid> _operationIdProvider;
+    private readonly Func<string?> _operationTypeProvider;
 
-    public ItemLogFactory(ItemLogOptions options, IRunStructuredLogger? runLogger, Func<Guid>? runIdProvider = null, Func<string?>? batchTypeProvider = null)
+    public ItemLogFactory(ItemLogOptions options, IOperationStructuredLogger? operationLogger, Func<Guid>? operationIdProvider = null, Func<string?>? operationTypeProvider = null)
     {
         _options = options;
-        _runLogger = runLogger;
-        _runIdProvider = runIdProvider ?? (() => Guid.Empty);
-        _batchTypeProvider = batchTypeProvider ?? (() => null);
+        _opLogger = operationLogger;
+        _operationIdProvider = operationIdProvider ?? (() => Guid.Empty);
+        _operationTypeProvider = operationTypeProvider ?? (() => null);
     }
 
     public IItemLogScope Start(string itemId)
     {
-        return new InMemoryItemLogScope(itemId, _options, _runIdProvider(), _batchTypeProvider(), _runLogger);
+        return new InMemoryItemLogScope(itemId, _options, _operationIdProvider(), _operationTypeProvider(), _opLogger);
     }
 }

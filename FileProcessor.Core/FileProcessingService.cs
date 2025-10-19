@@ -1,18 +1,14 @@
 using FileProcessor.Core.Interfaces;
-using FileProcessor.Core.Logging; // added
-using Serilog; // added
+using FileProcessor.Core.Logging;
 
 namespace FileProcessor.Core;
 
-public class FileProcessingService : IFileProcessingService
+public class FileProcessingService(IItemLogFactory? itemLogFactory = null) : IFileProcessingService
 {
-    private readonly IItemLogFactory? _itemLogFactory; // added optional factory
+    // optional factory
+    private readonly IItemLogFactory? _itemLogFactory = itemLogFactory;
 
-    public FileProcessingService(IItemLogFactory? itemLogFactory = null)
-    {
-        _itemLogFactory = itemLogFactory;
-    }
-
+    // What's the purpose of this?
     public string ProcessFiles(string directoryPath)
     {
         if (!Directory.Exists(directoryPath))
@@ -86,7 +82,7 @@ public class FileProcessingService : IFileProcessingService
         }
 
         var files = Directory.GetFiles(directoryPath, "*.txt");
-        
+
         int processedCount = 0;
         foreach (var file in files)
         {
@@ -105,10 +101,10 @@ public class FileProcessingService : IFileProcessingService
         {
             // Simulate some processing work
             await Task.Delay(100);
-            
+
             // Read and validate the file
             var content = await File.ReadAllTextAsync(filePath);
-            
+
             // Example processing: ensure file is not empty
             return !string.IsNullOrWhiteSpace(content);
         }
@@ -158,9 +154,9 @@ public class FileProcessingService : IFileProcessingService
                 }
             };
 
-            var json = System.Text.Json.JsonSerializer.Serialize(convertedData, new System.Text.Json.JsonSerializerOptions 
-            { 
-                WriteIndented = true 
+            var json = System.Text.Json.JsonSerializer.Serialize(convertedData, new System.Text.Json.JsonSerializerOptions
+            {
+                WriteIndented = true
             });
 
             // Write converted file
@@ -214,9 +210,9 @@ public class FileProcessingService : IFileProcessingService
                 }
             };
 
-            var json = System.Text.Json.JsonSerializer.Serialize(convertedData, new System.Text.Json.JsonSerializerOptions 
-            { 
-                WriteIndented = true 
+            var json = System.Text.Json.JsonSerializer.Serialize(convertedData, new System.Text.Json.JsonSerializerOptions
+            {
+                WriteIndented = true
             });
 
             // Simulate processing time (synchronous)

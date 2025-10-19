@@ -1,8 +1,9 @@
 using System;
-using FileProcessor.Infrastructure.Logging;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using FileProcessor.UI.Views;
+using FileProcessor.UI.Services;
+using FileProcessor.Core.Logging;
 
 namespace FileProcessor.UI.Services;
 
@@ -13,7 +14,8 @@ public static class UILoggingService
 {
     public static void ShowLogViewer()
     {
-        ShowLogViewer(LoggingService.LogFilePath);
+        var op = CompositionRoot.Get<IOperationContext>();
+        ShowLogViewer(op.LogFilePath);
     }
 
     public static void ShowLogViewer(string logFilePath)
@@ -22,11 +24,7 @@ public static class UILoggingService
         
         // If a specific log file path is provided and it's different from current, 
         // the LogViewerWindowViewModel should handle loading it
-        if (!string.IsNullOrEmpty(logFilePath) && logFilePath != LoggingService.LogFilePath)
-        {
-            // The LogViewerWindowViewModel will need to be updated to accept a specific file path
-            // For now, we'll show the current log viewer and the file path will be the current one
-        }
+        // For now, we'll show the current log viewer and the file path will be the current one
 
         if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && desktop.MainWindow != null)
         {

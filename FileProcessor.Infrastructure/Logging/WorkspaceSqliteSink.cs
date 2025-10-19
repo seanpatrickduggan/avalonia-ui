@@ -52,7 +52,7 @@ public sealed class WorkspaceSqliteSink : ILogEventSink
                 Message: message,
                 DataJson: dataJson,
                 SessionId: Wdb.SessionIdOrNull,
-                RunId: Wdb.CurrentRunId == 0 ? (long?)null : Wdb.CurrentRunId,
+                OperationId: Wdb.CurrentOperationId == 0 ? (long?)null : Wdb.CurrentOperationId,
                 ItemId: itemId,
                 Source: source?.ToString().Trim('"') ?? "serilog"
             );

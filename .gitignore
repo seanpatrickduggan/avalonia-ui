@@ -69,3 +69,6 @@ pids
 # Sample files
 SampleFiles/*
 FileProcessorWorkspace/*
+
+# Code metrics
+.VSCodeCounter/*

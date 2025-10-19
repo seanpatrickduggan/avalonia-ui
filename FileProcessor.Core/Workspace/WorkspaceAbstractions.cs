@@ -9,18 +9,18 @@ namespace FileProcessor.Core.Workspace;
 // Core contracts for a workspace database used by the app and viewers.
 // Keep this project free of concrete DB dependencies.
 
-public interface IWorkspaceDb : IRunStore, ILogStore, IDisposable
+public interface IWorkspaceDb : IOperationStore, ILogStore, IDisposable
 {
     Task InitializeAsync(string dbPath, CancellationToken ct = default);
     Task<long> StartSessionAsync(string? appVersion = null, string? userName = null, string? hostName = null, CancellationToken ct = default);
     Task EndSessionAsync(long sessionId, CancellationToken ct = default);
 }
 
-public interface IRunStore
+public interface IOperationStore
 {
-    Task<long> StartRunAsync(long sessionId, string type, string? name = null, string? metadataJson = null, long startedAtMs = 0, CancellationToken ct = default);
-    Task EndRunAsync(long runId, string status, long endedAtMs = 0, CancellationToken ct = default);
-    Task<long> UpsertItemAsync(long runId, string externalId, string status, int highestSeverity = (int)LogSeverity.Info, long startedAtMs = 0, long endedAtMs = 0, string? metricsJson = null, CancellationToken ct = default);
+    Task<long> StartOperationAsync(long sessionId, string type, string? name = null, string? metadataJson = null, long startedAtMs = 0, CancellationToken ct = default);
+    Task EndOperationAsync(long operationId, string status, long endedAtMs = 0, CancellationToken ct = default);
+    Task<long> UpsertItemAsync(long operationId, string externalId, string status, int highestSeverity = (int)LogSeverity.Info, long startedAtMs = 0, long endedAtMs = 0, string? metricsJson = null, CancellationToken ct = default);
 }
 
 public interface ILogStore
@@ -38,7 +38,7 @@ public sealed record LogWrite(
     string? Message,
     string? DataJson,
     long? SessionId,
-    long? RunId,
+    long? OperationId,
     long? ItemId,
     string? Source);
 
@@ -50,7 +50,7 @@ public sealed record LogRow(
     string? Subcategory,
     string? Message,
     string? DataJson,
-    long? RunId,
+    long? OperationId,
     long? ItemId);
 
 public sealed record LogGroupCount(
@@ -60,7 +60,7 @@ public sealed record LogGroupCount(
     int MaxLevel);
 
 public sealed record LogQuery(
-    long? RunId = null,
+    long? OperationId = null,
     long? ItemId = null,
     int? MinLevel = null,
     int? MaxLevel = null,
@@ -72,3 +72,16 @@ public sealed record LogQuery(
     long? FromTsMs = null,
     long? ToTsMs = null,
     long? SessionId = null);
+
+public interface IWorkspaceRuntime
+{
+    long SessionId { get; }
+    long CurrentOperationId { get; }
+
+    Task InitializeAsync(CancellationToken ct = default);
+    Task<long> StartOperationAsync(string type, string? name = null, string? metadataJson = null, long startedAtMs = 0, CancellationToken ct = default);
+    Task EndOperationAsync(string status = "succeeded", long endedAtMs = 0, CancellationToken ct = default);
+    Task<string> MaterializeOperationLogsAsync(long operationId, string? outputPath = null, CancellationToken ct = default);
+    Task<string> MaterializeSessionLogsAsync(long sessionId, string? outputPath = null, CancellationToken ct = default);
+    Task ShutdownAsync(CancellationToken ct = default);
+}

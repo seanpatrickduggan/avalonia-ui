@@ -31,9 +31,9 @@ namespace FileProcessor.UI.ViewModels
         [ObservableProperty]
         private ObservableCollection<ItemLogEntry> _selectedEntries = new(); // entries of selected item
 
-        public FileProcessorViewModel()
+        public FileProcessorViewModel(IOperationContext opContext)
         {
-            _processingService = new FileProcessingService(LoggingService.ItemLogFactory);
+            _processingService = new FileProcessingService(opContext.ItemLogFactory);
             _sampleFilesDirectory = Path.Combine(Directory.GetCurrentDirectory(), "SampleFiles");
         }
 

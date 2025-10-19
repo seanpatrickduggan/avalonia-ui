@@ -9,13 +9,15 @@ using System;
 using FileProcessor.Core.Logging;
 using System.IO;
 using FileProcessor.Infrastructure.Logging;
-using FileProcessor.Infrastructure.Workspace; // added
+using FileProcessor.Core.Workspace; // use runtime
+using Microsoft.Extensions.DependencyInjection;
+using FileProcessor.UI.Services;
 
 namespace FileProcessor.UI;
 
 public partial class App : Application
 {
-    public static string RunId { get; } = $"session_{DateTime.UtcNow:yyyyMMdd_HHmmss}"; // new per-session id
+    public static string OperationId { get; } = $"session_{DateTime.UtcNow:yyyyMMdd_HHmmss}"; // new per-session id
     private string? _logFilePath; // store path
 
     public override void Initialize()
@@ -36,11 +38,11 @@ public partial class App : Application
 
         var logsDir = Path.Combine(workspacePath, "logs");
         Directory.CreateDirectory(logsDir);
-        var logPath = Path.Combine(logsDir, $"run-{RunId}.jsonl");
+        var logPath = Path.Combine(logsDir, $"operation-{OperationId}.jsonl");
         _logFilePath = logPath; // save
         Log.Logger = new LoggerConfiguration()
             .Enrich.WithProperty("app", "FileProcessor")
-            .Enrich.WithProperty("run", RunId)
+            .Enrich.WithProperty("operation", OperationId)
             .MinimumLevel.Debug()
             .WriteTo.Async(a => a.File(
                 path: logPath,
@@ -52,11 +54,15 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        // Build DI container
+        var sp = CompositionRoot.Build();
+
         // Logging + DB after XAML is loaded
         ConfigureLogging();
-        LoggingService.Initialize(Log.Logger, RunId, _logFilePath!);
-        // Initialize workspace DB in background to avoid blocking UI thread
-        _ = WorkspaceDbService.InitializeAsync();
+        var op = sp.GetRequiredService<FileProcessor.Core.Logging.IOperationContext>();
+        op.Initialize(Log.Logger, OperationId, _logFilePath!);
+        var runtime = sp.GetRequiredService<FileProcessor.Core.Workspace.IWorkspaceRuntime>();
+        _ = runtime.InitializeAsync();
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
@@ -64,8 +70,6 @@ public partial class App : Application
             {
                 DataContext = new MainWindowViewModel()
             };
-            
-            // Handle application shutdown to save settings
             desktop.ShutdownRequested += OnShutdownRequested;
         }
 
@@ -74,6 +78,7 @@ public partial class App : Application
     
     private async void OnShutdownRequested(object? sender, ShutdownRequestedEventArgs e)
     {
+        var runtime = CompositionRoot.Get<IWorkspaceRuntime>();
         // Save settings before shutdown
         try
         {
@@ -81,12 +86,12 @@ public partial class App : Application
         }
         catch { }
 
-        // End active run and materialize logs
-        try { await LoggingService.EndCurrentRunAsync("succeeded"); } catch { }
-        try { await WorkspaceDbService.MaterializeSessionLogsAsync(WorkspaceDbService.SessionId); } catch { }
+        // End active operation and materialize logs
+        try { await CompositionRoot.Get<IOperationContext>().EndCurrentOperationAsync("succeeded"); } catch { }
+        try { await runtime.MaterializeSessionLogsAsync(runtime.SessionId); } catch { }
 
         // Flush Serilog then shutdown DB
         try { Serilog.Log.CloseAndFlush(); } catch { }
-        try { await WorkspaceDbService.ShutdownAsync(); } catch { }
+        try { await runtime.ShutdownAsync(); } catch { }
     }
 }

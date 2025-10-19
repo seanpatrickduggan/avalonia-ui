@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   notes         TEXT
 );
 
-CREATE TABLE IF NOT EXISTS runs (
+CREATE TABLE IF NOT EXISTS operations (
   id            INTEGER PRIMARY KEY,
   session_id    INTEGER REFERENCES sessions(id) ON DELETE SET NULL,
   type          TEXT,
@@ -22,12 +22,12 @@ CREATE TABLE IF NOT EXISTS runs (
   name          TEXT,
   metadata_json TEXT
 );
-CREATE INDEX IF NOT EXISTS ix_runs_session ON runs(session_id);
-CREATE INDEX IF NOT EXISTS ix_runs_time    ON runs(started_at_ms);
+CREATE INDEX IF NOT EXISTS ix_operations_session ON operations(session_id);
+CREATE INDEX IF NOT EXISTS ix_operations_time    ON operations(started_at_ms);
 
 CREATE TABLE IF NOT EXISTS items (
   id               INTEGER PRIMARY KEY,
-  run_id           INTEGER NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+  operation_id     INTEGER NOT NULL REFERENCES operations(id) ON DELETE CASCADE,
   external_id      TEXT,
   status           TEXT,
   highest_severity INTEGER DEFAULT 2,
@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS items (
   ended_at_ms      INTEGER,
   metrics_json     TEXT
 );
-CREATE INDEX IF NOT EXISTS ix_items_run ON items(run_id);
+CREATE INDEX IF NOT EXISTS ix_items_operation ON items(operation_id);
 CREATE INDEX IF NOT EXISTS ix_items_ext ON items(external_id);
 
 -- 0=Trace,1=Debug,2=Info,3=Warning,4=Error,5=Critical
@@ -48,12 +48,12 @@ CREATE TABLE IF NOT EXISTS log_entries (
   message     TEXT,
   data_json   TEXT,
   session_id  INTEGER REFERENCES sessions(id) ON DELETE SET NULL,
-  run_id      INTEGER REFERENCES runs(id) ON DELETE CASCADE,
+  operation_id INTEGER REFERENCES operations(id) ON DELETE CASCADE,
   item_id     INTEGER REFERENCES items(id) ON DELETE CASCADE,
   source      TEXT
 );
-CREATE INDEX IF NOT EXISTS ix_logs_ts        ON log_entries(ts_ms);
-CREATE INDEX IF NOT EXISTS ix_logs_level     ON log_entries(level);
-CREATE INDEX IF NOT EXISTS ix_logs_cat_sub   ON log_entries(category, subcategory);
-CREATE INDEX IF NOT EXISTS ix_logs_run_ts    ON log_entries(run_id, ts_ms);
-CREATE INDEX IF NOT EXISTS ix_logs_item_ts   ON log_entries(item_id, ts_ms);
+CREATE INDEX IF NOT EXISTS ix_logs_ts          ON log_entries(ts_ms);
+CREATE INDEX IF NOT EXISTS ix_logs_level       ON log_entries(level);
+CREATE INDEX IF NOT EXISTS ix_logs_cat_sub     ON log_entries(category, subcategory);
+CREATE INDEX IF NOT EXISTS ix_logs_operation_ts ON log_entries(operation_id, ts_ms);
+CREATE INDEX IF NOT EXISTS ix_logs_item_ts     ON log_entries(item_id, ts_ms);
