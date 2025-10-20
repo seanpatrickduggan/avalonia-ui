@@ -30,14 +30,26 @@ public class SettingsService : ISettingsService
     }
 
     private SettingsService()
+        : this(null)
     {
-        var settingsDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "FileProcessor");
-        if (!Directory.Exists(settingsDirectory))
+    }
+
+    internal SettingsService(string? settingsFilePath)
+    {
+        if (settingsFilePath == null)
         {
-            Directory.CreateDirectory(settingsDirectory);
-        }
+            var settingsDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "FileProcessor");
+            if (!Directory.Exists(settingsDirectory))
+            {
+                Directory.CreateDirectory(settingsDirectory);
+            }
         
-        _settingsFilePath = Path.Combine(settingsDirectory, "settings.json");
+            _settingsFilePath = Path.Combine(settingsDirectory, "settings.json");
+        }
+        else
+        {
+            _settingsFilePath = settingsFilePath;
+        }
         _settings = new AppSettings();
         
         // Load settings synchronously during initialization to avoid deadlocks
@@ -87,6 +99,13 @@ public class SettingsService : ISettingsService
             if (_settings.ActiveWorkspace != value)
             {
                 _settings.ActiveWorkspace = value;
+                
+                // Update IsActive flags
+                foreach (var workspace in _settings.Workspaces)
+                {
+                    workspace.IsActive = workspace.Path.Equals(value, StringComparison.OrdinalIgnoreCase);
+                }
+                
                 WorkspaceChanged?.Invoke(this, value);
             }
         }

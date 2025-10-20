@@ -28,12 +28,6 @@ public class FileGenerationService : IFileGenerationService
             {
                 progress.Report((i + 1, numberOfFiles));
             }
-            
-            // Add a small delay for very large batches to prevent UI blocking
-            if (i % 1000 == 0 && i > 0)
-            {
-                await Task.Delay(1);
-            }
         }
     }
 
@@ -67,15 +61,9 @@ public class FileGenerationService : IFileGenerationService
                 }
                 
                 // Report progress every 100 files or on the last file
-                if (progress != null && (i % 100 == 0 || i == fileCount - 1))
+                if (progress != null && i == fileCount - 1)
                 {
                     progress.Report((generatedCount, fileCount));
-                }
-                
-                // Add a small delay for very large batches to prevent UI blocking
-                if (i % 1000 == 0 && i > 0)
-                {
-                    await Task.Delay(1);
                 }
             }
 

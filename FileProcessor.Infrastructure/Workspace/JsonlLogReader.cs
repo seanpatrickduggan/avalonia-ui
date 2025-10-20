@@ -1,10 +1,11 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using FileProcessor.Core.Workspace;
-using FileProcessor.Core.Abstractions; // add
+using FileProcessor.Core.Abstractions;
+using FileProcessor.Infrastructure.Workspace.Jsonl;
 
 namespace FileProcessor.Infrastructure.Workspace;
 
@@ -15,75 +16,56 @@ public sealed class JsonlLogReader : ILogReader
     public JsonlLogReader(string filePath) : this(filePath, new FileProcessor.Infrastructure.Abstractions.SystemFileSystem()) {}
     public JsonlLogReader(string filePath, IFileSystem fs) { _filePath = filePath; _fs = fs; }
 
-    public Task<IReadOnlyList<LogRow>> QueryLogsAsync(LogQuery query, CancellationToken ct = default)
+    public async Task<IReadOnlyList<LogRow>> QueryLogsAsync(LogQuery query, CancellationToken ct = default)
     {
-        // naive streaming implementation; filter client-side for now
-        var list = new List<LogRow>(query.PageSize);
-        if (!_fs.FileExists(_filePath)) return Task.FromResult<IReadOnlyList<LogRow>>(list);
+        var list = new List<LogRow>(Math.Min(query.PageSize, 512));
+        if (!_fs.FileExists(_filePath)) return list;
         using var fs = _fs.CreateFile(_filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         using var sr = new StreamReader(fs);
+
         long rowId = 0;
-        long offset = query.Page * query.PageSize;
-        long taken = 0;
+        long skip = (long)query.Page * query.PageSize;
+        int taken = 0;
+        var predicate = JsonlFilters.BuildPredicate(query);
+
         string? line;
-        while ((line = sr.ReadLine()) != null)
+        while (!ct.IsCancellationRequested && (line = await sr.ReadLineAsync(ct)) != null)
         {
-            if (ct.IsCancellationRequested) break;
-            try
-            {
-                using var doc = JsonDocument.Parse(line);
-                var root = doc.RootElement;
-                long ts = 0;
-                if (root.TryGetProperty("ts_ms", out var tsEl) && tsEl.TryGetInt64(out var tsv)) ts = tsv;
-                int lvl = 2;
-                if (root.TryGetProperty("level", out var lvEl) && lvEl.TryGetInt32(out var lvv)) lvl = lvv;
-                string? cat = root.TryGetProperty("category", out var cEl) && cEl.ValueKind == JsonValueKind.String ? cEl.GetString() : null;
-                string? sub = root.TryGetProperty("subcategory", out var sEl) && sEl.ValueKind == JsonValueKind.String ? sEl.GetString() : null;
-                string? msg = root.TryGetProperty("message", out var mEl) && mEl.ValueKind == JsonValueKind.String ? mEl.GetString() : null;
-                string? data = root.TryGetProperty("data", out var dEl) ? dEl.GetRawText() : null;
-                long? opId = root.TryGetProperty("operation_id", out var oEl) && oEl.TryGetInt64(out var ov) ? ov : null;
-                long? itemId = root.TryGetProperty("item_id", out var iEl) && iEl.TryGetInt64(out var iv) ? iv : null;
-
-                // basic filtering
-                if (query.OperationId is long qo && opId != qo) continue;
-                if (query.ItemId is long qi && itemId != qi) continue;
-                if (query.MinLevel is int qmin && lvl < qmin) continue;
-                if (query.MaxLevel is int qmax && lvl > qmax) continue;
-                if (!string.IsNullOrWhiteSpace(query.Category) && !string.Equals(cat, query.Category)) continue;
-                if (!string.IsNullOrWhiteSpace(query.Subcategory) && !string.Equals(sub, query.Subcategory)) continue;
-                if (query.FromTsMs is long qf && ts < qf) continue;
-                if (query.ToTsMs is long qt && ts > qt) continue;
-                if (!string.IsNullOrWhiteSpace(query.TextContains) && (msg == null || msg.IndexOf(query.TextContains, System.StringComparison.OrdinalIgnoreCase) < 0)) continue;
-
-                // paging
-                if (offset > 0) { offset--; continue; }
-                if (taken >= query.PageSize) break;
-
-                list.Add(new LogRow(++rowId, ts, lvl, cat, sub, msg, data, opId, itemId));
-                taken++;
-            }
-            catch { /* ignore malformed lines */ }
+            if (!JsonlLineParser.TryParseLine(line, out var p)) continue;
+            if (!predicate(p)) continue;
+            if (skip > 0) { skip--; continue; }
+            if (taken >= query.PageSize) break;
+            list.Add(ToLogRow(++rowId, p));
+            taken++;
         }
-        return Task.FromResult<IReadOnlyList<LogRow>>(list);
+        return list;
     }
 
-    public Task<IReadOnlyList<LogGroupCount>> QueryGroupCountsAsync(LogQuery query, CancellationToken ct = default)
+    public async Task<IReadOnlyList<LogGroupCount>> QueryGroupCountsAsync(LogQuery query, CancellationToken ct = default)
     {
-        // naive pass to compute grouped counts (for small–medium files it's fine)
-        var groups = new System.Collections.Generic.Dictionary<(string? cat, string? sub), (int count, int maxLvl)>();
-        var rowsTask = QueryLogsAsync(query with { Page = 0, PageSize = int.MaxValue }, ct);
-        var rows = rowsTask.GetAwaiter().GetResult();
-        foreach (var r in rows)
+        var result = new List<LogGroupCount>();
+        if (!_fs.FileExists(_filePath)) return result;
+        var predicate = JsonlFilters.BuildPredicate(query);
+        var groups = new Dictionary<(string? cat, string? sub), (int count, int maxLvl)>();
+        using var fs = _fs.CreateFile(_filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using var sr = new StreamReader(fs);
+
+        string? line;
+        while (!ct.IsCancellationRequested && (line = await sr.ReadLineAsync(ct)) != null)
         {
-            var key = (r.Category, r.Subcategory);
+            if (!JsonlLineParser.TryParseLine(line, out var p)) continue;
+            if (!predicate(p)) continue;
+            var key = (p.Category, p.Subcategory);
             if (!groups.TryGetValue(key, out var val)) val = (0, -1);
             val.count++;
-            if (r.Level > val.maxLvl) val.maxLvl = r.Level;
+            if (p.Level > val.maxLvl) val.maxLvl = p.Level;
             groups[key] = val;
         }
-        var list = new List<LogGroupCount>(groups.Count);
         foreach (var kv in groups)
-            list.Add(new LogGroupCount(kv.Key.cat, kv.Key.sub, kv.Value.count, kv.Value.maxLvl));
-        return Task.FromResult<IReadOnlyList<LogGroupCount>>(list);
+            result.Add(new LogGroupCount(kv.Key.cat, kv.Key.sub, kv.Value.count, kv.Value.maxLvl));
+        return result;
     }
+
+    private static LogRow ToLogRow(long id, in JsonlLineParser.ParsedLog p)
+        => new(id, p.Ts, p.Level, p.Category, p.Subcategory, p.Message, p.DataJson, p.OperationId, p.ItemId);
 }

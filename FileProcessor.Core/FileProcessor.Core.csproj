@@ -12,4 +12,8 @@
     <PackageReference Include="Serilog.Sinks.Async" Version="1.5.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="FileProcessor.Core.Tests" />
+  </ItemGroup>
+
 </Project>

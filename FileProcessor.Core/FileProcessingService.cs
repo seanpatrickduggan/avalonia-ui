@@ -8,40 +8,19 @@ public class FileProcessingService(IItemLogFactory? itemLogFactory = null) : IFi
     // optional factory
     private readonly IItemLogFactory? _itemLogFactory = itemLogFactory;
 
-    // What's the purpose of this?
-    public string ProcessFiles(string directoryPath)
-    {
-        if (!Directory.Exists(directoryPath))
-        {
-            return "Directory not found.";
-        }
-
-        var files = Directory.GetFiles(directoryPath, "*.txt");
-        if (files.Length == 0)
-        {
-            return "No .txt files found to process.";
-        }
-
-        long totalSize = 0;
-        foreach (var file in files)
-        {
-            var fileInfo = new FileInfo(file);
-            totalSize += fileInfo.Length;
-            if (_itemLogFactory != null)
-            {
-                using var scope = _itemLogFactory.Start(Path.GetFileName(file));
-                scope.Log(LogSeverity.Info, "TXT", "Scan", $"Found file {fileInfo.Name}", new { fileInfo.Length });
-                if (fileInfo.Length == 0)
-                {
-                    scope.Log(LogSeverity.Warning, "TXT", "Validation", "File is empty");
-                }
-            }
-        }
-
-        return $"Processed {files.Length} files. Total size: {totalSize} bytes.";
-    }
-
-    // New method returning item log results
+    /// <summary>
+    /// Processes all .txt files in the specified directory, logging details for each file using the item log factory if available.
+    /// Returns a summary of the processing and a list of item log results.
+    /// </summary>
+    /// <param name="directoryPath">The path to the directory containing the .txt files to process.</param>
+    /// <returns>A tuple containing:
+    /// <list type="bullet">
+    /// <item><description>A summary string describing the number of files processed and their total size in bytes.</description></item>
+    /// <item><description>A read-only list of <see cref="ItemLogResult"/> objects representing the logs for each processed file.</description></item>
+    /// </list>
+    /// If the directory does not exist, returns ("Directory not found.", empty list).
+    /// If no .txt files are found, returns ("No .txt files found to process.", empty list).
+    /// </returns>
     public (string summary, IReadOnlyList<ItemLogResult> itemLogs) ProcessFilesWithLogs(string directoryPath)
     {
         if (!Directory.Exists(directoryPath))
@@ -99,9 +78,6 @@ public class FileProcessingService(IItemLogFactory? itemLogFactory = null) : IFi
     {
         try
         {
-            // Simulate some processing work
-            await Task.Delay(100);
-
             // Read and validate the file
             var content = await File.ReadAllTextAsync(filePath);
 
