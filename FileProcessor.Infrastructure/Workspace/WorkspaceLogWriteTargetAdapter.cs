@@ -16,8 +16,8 @@ public sealed class WorkspaceLogWriteTarget : ILogWriteTarget
 
     public WorkspaceLogWriteTarget(IWorkspaceRuntime runtime, ILogAppender appender)
     {
-        _runtime = runtime;
-        _appender = appender;
+        _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
+        _appender = appender ?? throw new ArgumentNullException(nameof(appender));
     }
 
     public long? SessionIdOrNull => _runtime.SessionId == 0 ? (long?)null : _runtime.SessionId;

@@ -57,9 +57,16 @@ public sealed class FakeFileSystem : IFileSystem
     {
         private readonly FakeFileSystem _fs;
         private readonly string _path;
-        public MemoryStreamWrapper(FakeFileSystem fs, string path, MemoryStream inner) : base(inner.ToArray(), true)
+        public MemoryStreamWrapper(FakeFileSystem fs, string path, MemoryStream inner) : base()
         {
-            _fs = fs; _path = path;
+            _fs = fs;
+            _path = path;
+            if (inner.Length > 0)
+            {
+                inner.Position = 0;
+                inner.CopyTo(this);
+                Position = 0;
+            }
         }
         protected override void Dispose(bool disposing)
         {

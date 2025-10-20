@@ -1,9 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Data;
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
 using FileProcessor.Core.Workspace;
 using Microsoft.Data.Sqlite;
 using Serilog; // added for user notifications

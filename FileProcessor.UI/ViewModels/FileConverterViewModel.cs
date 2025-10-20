@@ -237,8 +237,14 @@ public partial class FileConverterViewModel : ViewModelBase
                 });
             }, cancellationToken);
             
+            // Sort files by status then filename before adding to UI
+            var sortedFiles = allFiles
+                .OrderBy(f => f.Status)
+                .ThenBy(f => f.FileName)
+                .ToList();
+
             // Add all files to the UI collection
-            foreach (var fileItem in allFiles)
+            foreach (var fileItem in sortedFiles)
             {
                 fileItem.PropertyChanged += OnFileSelectionChanged;
                 Files.Add(fileItem);
@@ -248,6 +254,10 @@ public partial class FileConverterViewModel : ViewModelBase
             var selectedCount = Files.Count(f => f.IsSelected);
             SelectedFileCount = selectedCount;
             SelectAll = selectedCount == Files.Count;
+            
+            // Set default sort column to status
+            SortColumn = "status";
+            SortAscending = true;
             
             ProgressText = $"Check complete: {allFiles.Count} total files, {needsConversion} need conversion, {upToDate} up to date, {selectedCount} selected";
             CheckProgressText = "Check complete";

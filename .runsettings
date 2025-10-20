@@ -1,0 +1,17 @@
+<RunSettings>
+  <RunConfiguration>
+    <TargetFramework>net8.0</TargetFramework>
+  </RunConfiguration>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat Code Coverage">
+        <Configuration>
+          <Format>cobertura</Format>
+          <!-- <IncludeTestAssembly>true</IncludeTestAssembly> -->
+          <Exclude>[FileProcessor.UI*]*,[*]*.Generated</Exclude>
+          <Include>[FileProcessor.Core*]*,[FileProcessor.Infrastructure*]*</Include>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>

@@ -70,11 +70,142 @@ public class WorkspaceRuntimeTests
         }
     }
 
+    [Fact]
+    public async Task StartOperationAsync_sets_current_operation_id()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "wr-test-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var db = new FakeDb();
+            var settings = new FakeSettingsService { WorkspaceDirectory = tempDir };
+            IFileSystem fs = new SystemFileSystem();
+            var rt = new WorkspaceRuntime(db, settings, fs);
+            await rt.InitializeAsync();
+
+            rt.CurrentOperationId.Should().Be(0);
+            var opId = await rt.StartOperationAsync("test-op", "test name");
+            opId.Should().Be(11L);
+            rt.CurrentOperationId.Should().Be(11L);
+            
+            // Also test EndOperationAsync
+            await rt.EndOperationAsync();
+            rt.CurrentOperationId.Should().Be(0);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, recursive: true); } catch { }
+        }
+    }
+
+    [Fact]
+    public async Task ShutdownAsync_ends_session_and_clears_ids()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "wr-test-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var db = new FakeDb();
+            var settings = new FakeSettingsService { WorkspaceDirectory = tempDir };
+            IFileSystem fs = new SystemFileSystem();
+            var rt = new WorkspaceRuntime(db, settings, fs);
+            await rt.InitializeAsync();
+
+            rt.SessionId.Should().Be(1L);
+            await rt.StartOperationAsync("test-op");
+            rt.CurrentOperationId.Should().Be(11L);
+
+            await rt.ShutdownAsync();
+            rt.SessionId.Should().Be(0);
+            rt.CurrentOperationId.Should().Be(0);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, recursive: true); } catch { }
+        }
+    }
+
+    [Fact]
+    public async Task Dispose_calls_db_Dispose()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "wr-test-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var db = new FakeDb();
+            var settings = new FakeSettingsService { WorkspaceDirectory = tempDir };
+            IFileSystem fs = new SystemFileSystem();
+            var rt = new WorkspaceRuntime(db, settings, fs);
+            
+            rt.Dispose();
+            db.DisposeCalled.Should().BeTrue();
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, recursive: true); } catch { }
+        }
+    }
+
+    [Fact]
+    public async Task AppendAsync_forwards_to_AppendOrBufferAsync()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "wr-test-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var db = new FakeDb();
+            var settings = new FakeSettingsService { WorkspaceDirectory = tempDir };
+            IFileSystem fs = new SystemFileSystem();
+            var rt = new WorkspaceRuntime(db, settings, fs);
+            await rt.InitializeAsync();
+
+            var before = db.AppendCount;
+            await ((ILogAppender)rt).AppendAsync(new LogWrite(100, 2, "c", "s", "m", null, null, null, null, null));
+            
+            // Flush to ensure the channel writer processes the queued item
+            await rt.FlushAsync();
+            
+            db.AppendCount.Should().Be(before + 1);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, recursive: true); } catch { }
+        }
+    }
+
+    [Fact]
+    public async Task SafeAppendAsync_called_when_writer_is_null()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "wr-test-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var db = new FakeDb();
+            var settings = new FakeSettingsService { WorkspaceDirectory = tempDir };
+            IFileSystem fs = new SystemFileSystem();
+            var rt = new WorkspaceRuntime(db, settings, fs);
+            await rt.InitializeAsync();
+
+            // Use reflection to set _writer to null to test SafeAppendAsync
+            var writerField = typeof(WorkspaceRuntime).GetField("_writer", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            writerField?.SetValue(rt, null);
+
+            var before = db.AppendCount;
+            await rt.AppendOrBufferAsync(new LogWrite(100, 2, "c", "s", "m", null, null, null, null, null));
+            db.AppendCount.Should().Be(before + 1);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, recursive: true); } catch { }
+        }
+    }
+
     private sealed class FakeDb : IWorkspaceDb
     {
         public int AppendCount => _appends.Count;
         private readonly ConcurrentQueue<LogWrite> _appends = new();
-        public void Dispose() { }
+        public bool DisposeCalled { get; private set; }
+        public void Dispose() { DisposeCalled = true; }
         public Task InitializeAsync(string dbPath, CancellationToken ct = default) => Task.CompletedTask;
         public Task<long> StartSessionAsync(string? appVersion = null, string? userName = null, string? hostName = null, CancellationToken ct = default) => Task.FromResult(1L);
         public Task EndSessionAsync(long sessionId, CancellationToken ct = default) => Task.CompletedTask;

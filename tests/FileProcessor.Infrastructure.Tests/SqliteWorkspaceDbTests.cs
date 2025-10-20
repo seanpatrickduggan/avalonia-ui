@@ -100,4 +100,122 @@ public class SqliteWorkspaceDbTests
             try { Directory.Delete(dir, recursive: true); } catch { }
         }
     }
+
+    [Fact]
+    public async Task Can_End_Session()
+    {
+        var (dir, dbPath) = TempWorkspace();
+        try
+        {
+            IFileSystem fs = new SystemFileSystem();
+            var db = new SqliteWorkspaceDb(fs, TimeProvider.System);
+            await db.InitializeAsync(dbPath);
+
+            var sessionId = await db.StartSessionAsync();
+            await db.EndSessionAsync(sessionId);
+
+            // Should not throw and session should be ended
+            // We can't easily verify the end time without querying the DB directly
+        }
+        finally
+        {
+            try { Directory.Delete(dir, recursive: true); } catch { }
+        }
+    }
+
+    [Fact]
+    public async Task Can_End_Operation()
+    {
+        var (dir, dbPath) = TempWorkspace();
+        try
+        {
+            IFileSystem fs = new SystemFileSystem();
+            var db = new SqliteWorkspaceDb(fs, TimeProvider.System);
+            await db.InitializeAsync(dbPath);
+
+            var sessionId = await db.StartSessionAsync();
+            var operationId = await db.StartOperationAsync(sessionId, "test-op");
+            await db.EndOperationAsync(operationId, "completed");
+
+            // Should not throw and operation should be ended
+        }
+        finally
+        {
+            try { Directory.Delete(dir, recursive: true); } catch { }
+        }
+    }
+
+    [Fact]
+    public async Task Can_End_Operation_With_Custom_End_Time()
+    {
+        var (dir, dbPath) = TempWorkspace();
+        try
+        {
+            IFileSystem fs = new SystemFileSystem();
+            var db = new SqliteWorkspaceDb(fs, TimeProvider.System);
+            await db.InitializeAsync(dbPath);
+
+            var sessionId = await db.StartSessionAsync();
+            var operationId = await db.StartOperationAsync(sessionId, "test-op");
+            var customEndTime = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeMilliseconds();
+            await db.EndOperationAsync(operationId, "completed", customEndTime);
+
+            // Should not throw
+        }
+        finally
+        {
+            try { Directory.Delete(dir, recursive: true); } catch { }
+        }
+    }
+
+    [Fact]
+    public async Task Can_Upsert_Item_New_Item()
+    {
+        var (dir, dbPath) = TempWorkspace();
+        try
+        {
+            IFileSystem fs = new SystemFileSystem();
+            var db = new SqliteWorkspaceDb(fs, TimeProvider.System);
+            await db.InitializeAsync(dbPath);
+
+            var sessionId = await db.StartSessionAsync();
+            var operationId = await db.StartOperationAsync(sessionId, "test-op");
+
+            var itemId = await db.UpsertItemAsync(operationId, "item1", "running", 2);
+            itemId.Should().BeGreaterThan(0);
+
+            // Upsert same item again should return same ID
+            var itemId2 = await db.UpsertItemAsync(operationId, "item1", "completed", 3);
+            itemId2.Should().Be(itemId);
+        }
+        finally
+        {
+            try { Directory.Delete(dir, recursive: true); } catch { }
+        }
+    }
+
+    [Fact]
+    public async Task Can_Upsert_Item_With_Custom_Times()
+    {
+        var (dir, dbPath) = TempWorkspace();
+        try
+        {
+            IFileSystem fs = new SystemFileSystem();
+            var db = new SqliteWorkspaceDb(fs, TimeProvider.System);
+            await db.InitializeAsync(dbPath);
+
+            var sessionId = await db.StartSessionAsync();
+            var operationId = await db.StartOperationAsync(sessionId, "test-op");
+
+            var startTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var endTime = startTime + 1000;
+
+            var itemId = await db.UpsertItemAsync(operationId, "item1", "completed", 2, startTime, endTime, "{\"key\":\"value\"}");
+            itemId.Should().BeGreaterThan(0);
+        }
+        finally
+        {
+            try { Directory.Delete(dir, recursive: true); } catch { }
+        }
+    }
 }
