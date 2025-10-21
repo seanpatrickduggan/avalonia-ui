@@ -73,8 +73,8 @@ public class FileProcessingServiceTests : IDisposable
         var (summary, logs) = service.ProcessFilesWithLogs(_tempDir);
         summary.Should().Contain("Processed 2 files");
         logs.Should().HaveCount(2);
-        logs[0].ItemId.Should().Be("test1.txt");
-        logs[1].ItemId.Should().Be("empty.txt");
+        // Order of files returned by the filesystem is not guaranteed; assert the IDs regardless of order.
+        logs.Select(l => l.ItemId).Should().BeEquivalentTo(new[] { "test1.txt", "empty.txt" });
     }
 
     [Fact]

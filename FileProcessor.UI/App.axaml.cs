@@ -41,7 +41,15 @@ public partial class App : Application
         var workspacePath = SettingsService.Instance.WorkspaceDirectory;
         if (string.IsNullOrWhiteSpace(workspacePath))
         {
-            throw new InvalidOperationException("No workspace configured. Please configure a workspace before starting the application.");
+            // Don't fail startup when running headless tests or when the user hasn't configured a workspace yet.
+            // Use a minimal console/debug logger and leave _logFilePath null/empty so Initialize can still be called.
+            _logFilePath = string.Empty;
+            Log.Logger = new LoggerConfiguration()
+                .Enrich.WithProperty("app", "FileProcessor")
+                .Enrich.WithProperty("operation", OperationId)
+                .MinimumLevel.Debug()
+                .CreateLogger();
+            return;
         }
 
         var logsDir = Path.Combine(workspacePath, "logs");
@@ -68,8 +76,8 @@ public partial class App : Application
 
         // Logging + DB after XAML is loaded
         ConfigureLogging();
-        var op = _sp.GetRequiredService<FileProcessor.Core.Logging.IOperationContext>();
-        op.Initialize(OperationId, _logFilePath!);
+    var op = _sp.GetRequiredService<FileProcessor.Core.Logging.IOperationContext>();
+    op.Initialize(OperationId, _logFilePath ?? string.Empty);
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
