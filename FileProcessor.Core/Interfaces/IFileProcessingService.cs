@@ -11,7 +11,7 @@ public interface IFileProcessingService
     /// <param name="directoryPath">Path to the directory containing files to process</param>
     /// <returns>Number of files processed</returns>
     Task<int> ProcessFilesAsync(string directoryPath);
-    
+
     /// <summary>
     /// Process a single file
     /// </summary>

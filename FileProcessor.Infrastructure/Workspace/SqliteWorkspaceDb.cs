@@ -1,6 +1,6 @@
 using FileProcessor.Core.Workspace;
 using Microsoft.Data.Sqlite;
-using Serilog; // added for user notifications
+using Serilog;
 
 namespace FileProcessor.Infrastructure.Workspace;
 

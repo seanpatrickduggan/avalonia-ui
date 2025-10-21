@@ -196,6 +196,7 @@ public class FileProcessingService(IItemLogFactory? itemLogFactory = null) : IFi
 
             // Write converted file
             File.WriteAllText(outputFilePath, json);
+            try { File.SetLastWriteTimeUtc(outputFilePath, DateTime.UtcNow); } catch { }
 
             return true;
         }
@@ -217,6 +218,8 @@ public class FileProcessingService(IItemLogFactory? itemLogFactory = null) : IFi
         var outputInfo = new FileInfo(outputFilePath);
 
         // Convert if input file is newer than output file
-        return inputInfo.LastWriteTime > outputInfo.LastWriteTime;
+        var inputUtc = inputInfo.LastWriteTimeUtc;
+        var outputUtc = outputInfo.LastWriteTimeUtc;
+        return inputUtc > outputUtc;
     }
 }

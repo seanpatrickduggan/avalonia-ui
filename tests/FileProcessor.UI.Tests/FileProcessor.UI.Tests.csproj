@@ -22,6 +22,7 @@
   <ItemGroup>
     <ProjectReference Include="../../FileProcessor.UI/FileProcessor.UI.csproj" />
     <ProjectReference Include="../../FileProcessor.Core/FileProcessor.Core.csproj" />
+      <ProjectReference Include="../../LogViewer.UI/LogViewer.UI.csproj" />
     <ProjectReference Include="../../FileProcessor.Infrastructure/FileProcessor.Infrastructure.csproj" />
   </ItemGroup>
 </Project>

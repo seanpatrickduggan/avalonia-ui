@@ -34,10 +34,10 @@ namespace FileProcessor.UI.ViewModels
         {
             _generationService = new FileGenerationService();
             _settingsService = SettingsService.Instance;
-            
+
             // Subscribe to workspace changes
             _settingsService.WorkspaceChanged += OnWorkspaceChanged;
-            
+
             UpdateTargetDirectory();
         }
 

@@ -38,5 +38,6 @@
   <ItemGroup>
     <ProjectReference Include="..//FileProcessor.Core/FileProcessor.Core.csproj" />
     <ProjectReference Include="../FileProcessor.Infrastructure/FileProcessor.Infrastructure.csproj" />
+    <ProjectReference Include="..//LogViewer.UI/LogViewer.UI.csproj" />
   </ItemGroup>
 </Project>

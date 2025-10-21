@@ -6,10 +6,11 @@ using FileProcessor.Core.Workspace;
 using FileProcessor.Infrastructure.Logging;
 using FileProcessor.Infrastructure.Workspace;
 using FileProcessor.Core;
-using FileProcessor.Core.App; // add
-using FileProcessor.Infrastructure.App; // add
-using FileProcessor.Core.Abstractions; // keep for IFileSystem
-using FileProcessor.Infrastructure.Abstractions; // keep for SystemFileSystem
+using FileProcessor.Core.App;
+using FileProcessor.Infrastructure.App;
+using LogViewer.UI.ViewModels;
+using FileProcessor.Core.Abstractions;
+using FileProcessor.Infrastructure.Abstractions;
 
 namespace FileProcessor.UI.Services;
 
@@ -54,7 +55,8 @@ public static class CompositionRoot
         services.AddSingleton<FileProcessor.UI.ViewModels.FileConverterViewModel>();
         services.AddSingleton<FileProcessor.UI.ViewModels.SettingsViewModel>();
         services.AddSingleton<FileProcessor.UI.ViewModels.FileGeneratorViewModel>();
-        services.AddTransient<FileProcessor.UI.ViewModels.LogViewerWindowViewModel>();
+        // Use canonical LogViewer from LogViewer.UI instead of duplicating types here
+        services.AddTransient<LogViewer.UI.ViewModels.LogViewerWindowViewModel>();
         services.AddSingleton<FileProcessor.UI.ViewModels.MainWindowViewModel>();
 
         _provider = services.BuildServiceProvider(validateScopes: false);

@@ -71,20 +71,20 @@ namespace FileProcessor.UI.ViewModels
         {
             _themeService = new ThemeService();
             _settingsService = SettingsService.Instance;
-            
+
             // Get current theme from ThemeService
             _isDarkMode = _themeService.IsCurrentThemeDark();
-            
+
             // Initialize core settings
             CoreSpareCount = _settingsService.CoreSpareCount;
             UpdateAvailableCores();
-            
+
             // Subscribe to workspace changes
             _settingsService.WorkspaceChanged += OnWorkspaceChanged;
-            
+
             // Load workspace settings
             LoadWorkspaceSettings();
-            
+
             // Initialize core settings
             CoreSpareCount = _settingsService.CoreSpareCount;
             UpdateAvailableCores();
@@ -113,13 +113,13 @@ namespace FileProcessor.UI.ViewModels
             try
             {
                 StatusMessage = "Adding workspace...";
-                
-                var workspaceName = string.IsNullOrWhiteSpace(NewWorkspaceName) 
+
+                var workspaceName = string.IsNullOrWhiteSpace(NewWorkspaceName)
                     ? Path.GetFileName(NewWorkspacePath) ?? "Unnamed Workspace"
                     : NewWorkspaceName;
-                
+
                 var success = await _settingsService.AddWorkspaceAsync(NewWorkspacePath, workspaceName);
-                
+
                 if (success)
                 {
                     LoadWorkspaceSettings();
@@ -146,9 +146,9 @@ namespace FileProcessor.UI.ViewModels
             try
             {
                 StatusMessage = "Setting active workspace...";
-                
+
                 var success = await _settingsService.SetActiveWorkspaceAsync(workspace.Path);
-                
+
                 if (success)
                 {
                     LoadWorkspaceSettings();
@@ -173,9 +173,9 @@ namespace FileProcessor.UI.ViewModels
             try
             {
                 StatusMessage = "Removing workspace...";
-                
+
                 var success = await _settingsService.RemoveWorkspaceAsync(workspace.Path);
-                
+
                 if (success)
                 {
                     LoadWorkspaceSettings();
@@ -197,7 +197,7 @@ namespace FileProcessor.UI.ViewModels
         {
             try
             {
-                if (!string.IsNullOrEmpty(_settingsService.WorkspaceDirectory) && 
+                if (!string.IsNullOrEmpty(_settingsService.WorkspaceDirectory) &&
                     Directory.Exists(_settingsService.WorkspaceDirectory))
                 {
                     // This is a simple approach - in production you'd want cross-platform file manager opening
@@ -240,10 +240,10 @@ namespace FileProcessor.UI.ViewModels
                 InputDirectory = _settingsService.InputDirectory ?? "";
                 ProcessedDirectory = _settingsService.ProcessedDirectory ?? "";
                 HasValidWorkspace = Directory.Exists(_settingsService.WorkspaceDirectory);
-                
-                SelectedWorkspace = Workspaces.FirstOrDefault(w => 
+
+                SelectedWorkspace = Workspaces.FirstOrDefault(w =>
                     w.Path.Equals(_settingsService.WorkspaceDirectory, StringComparison.OrdinalIgnoreCase));
-                
+
                 if (HasValidWorkspace)
                 {
                     var dbPath = Path.Combine(_settingsService.WorkspaceDirectory!, "workspace.db");

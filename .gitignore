@@ -76,3 +76,6 @@ tests/**/TestResults/**/coverage.cobertura.xml
 
 # Coverage reports
 coverage-report/*
+
+# Test results
+**/TestResults/**/*

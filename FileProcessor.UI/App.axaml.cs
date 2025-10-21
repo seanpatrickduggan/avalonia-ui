@@ -9,18 +9,18 @@ using System;
 using FileProcessor.Core.Logging;
 using System.IO;
 using FileProcessor.Infrastructure.Logging;
-using FileProcessor.Core.Workspace; // use runtime
+using FileProcessor.Core.Workspace;
 using Microsoft.Extensions.DependencyInjection;
 using FileProcessor.UI.Services;
-using Serilog.Debugging; // SelfLog
-using System.Diagnostics; // Debug
-using FileProcessor.Core.App; // host
+using Serilog.Debugging;
+using System.Diagnostics;
+using FileProcessor.Core.App;
 
 namespace FileProcessor.UI;
 
 public partial class App : Application
 {
-    public static string OperationId { get; } = $"session_{DateTime.UtcNow:yyyyMMdd_HHmmss}"; // new per-session id
+    public static string OperationId { get; } = $"session_{DateTime.UtcNow:yyyyMMdd_HHmmss}";
     private string? _logFilePath; // store path
     private System.IServiceProvider? _sp;
     private IClassicDesktopStyleApplicationLifetime? _desktop;
@@ -76,8 +76,8 @@ public partial class App : Application
 
         // Logging + DB after XAML is loaded
         ConfigureLogging();
-    var op = _sp.GetRequiredService<FileProcessor.Core.Logging.IOperationContext>();
-    op.Initialize(OperationId, _logFilePath ?? string.Empty);
+        var op = _sp.GetRequiredService<FileProcessor.Core.Logging.IOperationContext>();
+        op.Initialize(OperationId, _logFilePath ?? string.Empty);
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
@@ -126,12 +126,12 @@ public partial class App : Application
                 vm3.ReportWorkspaceFailed(ex.Message + (ex.InnerException != null ? " | " + ex.InnerException.Message : string.Empty));
         }
     }
-    
+
     private async void OnMainWindowOpened(object? sender, EventArgs e)
     {
         await InitializeWorkspaceAsync();
     }
-    
+
     private async void OnShutdownRequested(object? sender, ShutdownRequestedEventArgs e)
     {
         var host = _sp!.GetRequiredService<IApplicationHost>();

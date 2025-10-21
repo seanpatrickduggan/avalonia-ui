@@ -22,7 +22,7 @@ public class FileGenerationService : IFileGenerationService
             var contentSize = Random.Shared.Next(100, 5000);
             var content = GenerateRandomContent($"file_{i + 1}.txt", contentSize, i + 1);
             await File.WriteAllTextAsync(filePath, content);
-            
+
             // Report progress every 100 files or on the last file
             if (progress != null && (i % 100 == 0 || i == numberOfFiles - 1))
             {
@@ -50,16 +50,16 @@ public class FileGenerationService : IFileGenerationService
             {
                 var fileName = $"test_file_{i + 1:D6}.txt";
                 var filePath = Path.Combine(outputDirectory, fileName);
-                
+
                 // Create varied content with different sizes
                 var contentSize = Random.Shared.Next(100, 5000); // Random size between 100-5000 chars
                 var content = GenerateRandomContent(fileName, contentSize, i + 1);
-                
+
                 if (await GenerateFileAsync(filePath, content))
                 {
                     generatedCount++;
                 }
-                
+
                 // Report progress every 100 files or on the last file
                 if (progress != null && i == fileCount - 1)
                 {
@@ -102,26 +102,26 @@ public class FileGenerationService : IFileGenerationService
         };
 
         var random = new Random(fileNumber); // Seed with file number for consistency
-        var words = new[] 
-        { 
-            "data", "processing", "file", "content", "sample", "test", "information", 
+        var words = new[]
+        {
+            "data", "processing", "file", "content", "sample", "test", "information",
             "system", "application", "service", "method", "function", "variable",
             "parameter", "result", "output", "input", "configuration", "settings"
         };
 
         var currentLength = string.Join("\n", lines).Length;
-        
+
         while (currentLength < size - 50) // Leave some buffer
         {
             var sentence = "";
             var sentenceLength = random.Next(5, 15); // 5-15 words per sentence
-            
+
             for (int i = 0; i < sentenceLength; i++)
             {
                 if (i > 0) sentence += " ";
                 sentence += words[random.Next(words.Length)];
             }
-            
+
             sentence += ".";
             lines.Add(sentence);
             currentLength += sentence.Length + 1; // +1 for newline
@@ -129,7 +129,7 @@ public class FileGenerationService : IFileGenerationService
 
         lines.Add("");
         lines.Add($"End of file {fileNumber}");
-        
+
         return string.Join("\n", lines);
     }
 }

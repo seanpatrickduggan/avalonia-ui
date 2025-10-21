@@ -45,7 +45,7 @@ namespace FileProcessor.UI.ViewModels
             };
 
             CurrentPage = NavigationItems[0].ViewModel;
-            
+
             // Set initial selection
             NavigationItems[0].IsSelected = true;
 
@@ -88,7 +88,7 @@ namespace FileProcessor.UI.ViewModels
         {
             // Update the current page
             CurrentPage = viewModel;
-            
+
             // Update selection state for all navigation items
             foreach (var item in NavigationItems)
             {
