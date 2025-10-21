@@ -47,11 +47,12 @@ public class FileGenerationServiceTests : IDisposable
         var subDir = Path.Combine(_tempDir, "progress");
         var progressReports = new System.Collections.Generic.List<(int completed, int total)>();
 
-        var progress = new Progress<(int completed, int total)>(p => progressReports.Add(p));
+        // Use a test helper that invokes progress callbacks synchronously so assertions don't need to wait.
+        var progress = new SynchronousProgress<(int completed, int total)>(p => progressReports.Add(p));
 
         await service.GenerateFilesAsync(subDir, 5, progress);
 
-        progressReports.Should().HaveCount(2); // every 100 or last, but since <100, only last
+        progressReports.Should().HaveCount(2); // should see initial (1,5) and final (5,5)
         progressReports.Last().Should().Be((5, 5));
     }
 
@@ -76,13 +77,21 @@ public class FileGenerationServiceTests : IDisposable
         var subDir = Path.Combine(_tempDir, "testprogress");
         var progressReports = new System.Collections.Generic.List<(int completed, int total)>();
 
-        var progress = new Progress<(int completed, int total)>(p => progressReports.Add(p));
+        var progress = new SynchronousProgress<(int completed, int total)>(p => progressReports.Add(p));
 
         var count = await service.GenerateTestFilesAsync(subDir, 3, progress);
 
         count.Should().Be(3);
         progressReports.Should().HaveCount(1); // only on last
         progressReports.Last().Should().Be((3, 3));
+    }
+
+    // Test-only helper: executes IProgress<T>.Report callbacks synchronously on the calling thread.
+    private sealed class SynchronousProgress<T> : IProgress<T>
+    {
+        private readonly Action<T> _callback;
+        public SynchronousProgress(Action<T> callback) => _callback = callback;
+        public void Report(T value) => _callback(value);
     }
 
     [Fact]
