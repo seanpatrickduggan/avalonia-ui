@@ -2,7 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:vm="using:FileProcessor.UI.ViewModels"
+  xmlns:vm="using:LogViewer.UI.ViewModels"
         xmlns:conv="using:FileProcessor.UI.Converters"
         xmlns:logging="using:FileProcessor.Core.Logging"
         x:Class="FileProcessor.UI.Views.LogViewerWindow"
@@ -70,7 +70,7 @@
           </ItemsPanelTemplate>
         </ListBox.ItemsPanel>
         <ListBox.ItemTemplate>
-          <DataTemplate x:DataType="vm:LogGroupViewModel">
+          <DataTemplate>
             <StackPanel Margin="0,0,0,6">
               <Border Background="#222" CornerRadius="4" Padding="6" Margin="0,0,0,2">
                 <DockPanel>

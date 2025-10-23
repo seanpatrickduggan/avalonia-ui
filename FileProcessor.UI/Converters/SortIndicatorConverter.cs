@@ -11,8 +11,8 @@ public class SortIndicatorConverter : IMultiValueConverter
 
     public object? Convert(IList<object?> values, Type targetType, object? parameter, CultureInfo culture)
     {
-        if (values.Count < 2 || 
-            values[0] is not string currentSortColumn || 
+        if (values.Count < 2 ||
+            values[0] is not string currentSortColumn ||
             values[1] is not bool sortAscending ||
             parameter is not string columnName)
             return "";

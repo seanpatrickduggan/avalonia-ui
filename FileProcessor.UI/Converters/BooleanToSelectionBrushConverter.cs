@@ -20,7 +20,7 @@ public class BooleanToSelectionBrushConverter : IValueConverter
             // Return a light blue brush for selected items
             return new SolidColorBrush(Color.FromArgb(40, 33, 150, 243)); // Light blue with transparency
         }
-        
+
         // Return transparent for unselected items
         return Brushes.Transparent;
     }

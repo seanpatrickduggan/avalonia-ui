@@ -200,31 +200,11 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
     private bool ParseLine(string line)
     {
-        try
-        {
-            using var doc = JsonDocument.Parse(line);
-            var root = doc.RootElement;
-            var ts = root.TryGetProperty("Timestamp", out var tEl) && tEl.ValueKind == JsonValueKind.String ? tEl.GetDateTime() : DateTime.UtcNow;
-            var msg = root.TryGetProperty("RenderedMessage", out var rmEl) ? rmEl.GetString() ?? string.Empty : root.TryGetProperty("MessageTemplate", out var mtEl) ? mtEl.GetString() ?? string.Empty : string.Empty;
-            var levelStr = root.TryGetProperty("Level", out var lvlEl) ? lvlEl.GetString() ?? "Information" : "Information";
-            LogSeverity severity = levelStr switch { "Verbose" => LogSeverity.Trace, "Debug" => LogSeverity.Debug, "Information" => LogSeverity.Info, "Warning" => LogSeverity.Warning, "Error" => LogSeverity.Error, "Fatal" => LogSeverity.Critical, _ => LogSeverity.Info };
-            string cat = string.Empty; string sub = string.Empty; object? dataObj = null;
-            if (root.TryGetProperty("Properties", out var props))
-            {
-                if (props.TryGetProperty("cat", out var catEl)) cat = catEl.ToString();
-                if (props.TryGetProperty("sub", out var subEl)) sub = subEl.ToString();
-                if (props.TryGetProperty("severityRank", out var rankEl))
-                {
-                    var rank = rankEl.GetInt32();
-                    if (rank >= 0 && rank <= 5) severity = (LogSeverity)rank;
-                }
-            }
-            var entry = new ItemLogEntry(ts, severity, cat, sub, msg, dataObj);
-            _all.Add(entry);
-            TotalCount = _all.Count;
-            return true;
-        }
-        catch { return false; }
+        var entry = LogParser.Parse(line);
+        if (entry == null) return false;
+        _all.Add(entry);
+        TotalCount = _all.Count;
+        return true;
     }
 
     private void RebuildCategoryLists()

@@ -10,7 +10,7 @@ public interface IThemeService
     /// </summary>
     /// <param name="isDark">True for dark theme, false for light theme</param>
     void ChangeTheme(bool isDark);
-    
+
     /// <summary>
     /// Check if the current theme is dark
     /// </summary>

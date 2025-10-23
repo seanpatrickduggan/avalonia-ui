@@ -48,12 +48,12 @@ public class AppTests
 
             // Assert - Verify the structure
             Directory.Exists(logsDir).Should().BeTrue("Logs directory should be created");
-            
+
             // Also verify we can create operation log files there
             var operationId = $"session_{DateTime.UtcNow:yyyyMMdd_HHmmss}";
             var logPath = Path.Combine(logsDir, $"operation-{operationId}.jsonl");
             File.WriteAllText(logPath, "{\"event\": \"test\"}");
-            
+
             File.Exists(logPath).Should().BeTrue("Operation log file should be created successfully");
         }
         finally
@@ -74,13 +74,13 @@ public class AppTests
         {
             // Act - Replicate the DB path construction from InitializeWorkspaceAsync
             var dbPath = Path.Combine(tempDir, "workspace.db");
-            
+
             // Assert - DB shouldn't exist initially
             File.Exists(dbPath).Should().BeFalse("DB should not exist in new workspace");
 
             // Act - Create the DB file (simulating successful workspace initialization)
             File.WriteAllText(dbPath, "PRAGMA journal_mode=WAL;");
-            
+
             // Assert - Now it should exist and be readable
             File.Exists(dbPath).Should().BeTrue("DB should exist after creation");
             var content = File.ReadAllText(dbPath);
@@ -104,7 +104,7 @@ public class AppTests
             // Act - Test the "exists" check that InitializeWorkspaceAsync performs
             var dbPath = Path.Combine(tempDir, "workspace.db");
             var exists = File.Exists(dbPath);
-            
+
             // Assert - File shouldn't exist initially
             exists.Should().BeFalse();
 
@@ -129,7 +129,7 @@ public class AppTests
         // - WorkspaceRuntimeTests (tests runtime shutdown, materialization)
         // - OperationContextServiceTests (tests operation ending)
         // - WorkspaceLogWriteTargetTests (tests log writing)
-        
+
         // The App class method OnShutdownRequested simply calls these already-tested interfaces:
         // 1. await host.InitializeAsync() (tested in ApplicationHostTests)
         // 2. await _sp.GetRequiredService<IOperationContext>().EndCurrentOperationAsync("succeeded") (tested in OperationContextServiceTests)
@@ -146,7 +146,7 @@ public class AppTests
     {
         // Test the format of the OperationId that App generates
         var operationId = $"session_{DateTime.UtcNow:yyyyMMdd_HHmmss}";
-        
+
         // Assert - Verify the format
         operationId.Should().StartWith("session_");
         operationId.Should().MatchRegex(@"^session_\d{8}_\d{6}$", "OperationId should follow session_yyyyMMdd_HHmmss format");

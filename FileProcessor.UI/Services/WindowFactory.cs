@@ -12,7 +12,8 @@ public sealed class WindowFactory : IWindowFactory
     public Window CreateLogViewerWindow()
     {
         var w = new LogViewerWindow();
-        w.DataContext = _sp.GetRequiredService<FileProcessor.UI.ViewModels.LogViewerWindowViewModel>();
+        // Resolve the canonical LogViewerWindowViewModel from LogViewer.UI
+        w.DataContext = _sp.GetRequiredService<LogViewer.UI.ViewModels.LogViewerWindowViewModel>();
         return w;
     }
 }

@@ -17,7 +17,7 @@ public partial class LogViewerWindow : Window
 
     private async void CopyPath_Click(object? sender, RoutedEventArgs e)
     {
-        if (this.Clipboard != null && DataContext is FileProcessor.UI.ViewModels.LogViewerWindowViewModel vm)
+        if (this.Clipboard != null && DataContext is LogViewer.UI.ViewModels.LogViewerWindowViewModel vm)
         {
             await this.Clipboard.SetTextAsync(vm.LogFilePath);
         }

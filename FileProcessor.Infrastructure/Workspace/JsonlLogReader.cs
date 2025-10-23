@@ -13,7 +13,7 @@ public sealed class JsonlLogReader : ILogReader
 {
     private readonly string _filePath;
     private readonly IFileSystem _fs;
-    public JsonlLogReader(string filePath) : this(filePath, new FileProcessor.Infrastructure.Abstractions.SystemFileSystem()) {}
+    public JsonlLogReader(string filePath) : this(filePath, new FileProcessor.Infrastructure.Abstractions.SystemFileSystem()) { }
     public JsonlLogReader(string filePath, IFileSystem fs) { _filePath = filePath; _fs = fs; }
 
     public async Task<IReadOnlyList<LogRow>> QueryLogsAsync(LogQuery query, CancellationToken ct = default)

@@ -87,7 +87,7 @@ public class WorkspaceRuntimeTests
             var opId = await rt.StartOperationAsync("test-op", "test name");
             opId.Should().Be(11L);
             rt.CurrentOperationId.Should().Be(11L);
-            
+
             // Also test EndOperationAsync
             await rt.EndOperationAsync();
             rt.CurrentOperationId.Should().Be(0);
@@ -136,7 +136,7 @@ public class WorkspaceRuntimeTests
             var settings = new FakeSettingsService { WorkspaceDirectory = tempDir };
             IFileSystem fs = new SystemFileSystem();
             var rt = new WorkspaceRuntime(db, settings, fs);
-            
+
             rt.Dispose();
             db.DisposeCalled.Should().BeTrue();
         }
@@ -161,10 +161,10 @@ public class WorkspaceRuntimeTests
 
             var before = db.AppendCount;
             await ((ILogAppender)rt).AppendAsync(new LogWrite(100, 2, "c", "s", "m", null, null, null, null, null));
-            
+
             // Flush to ensure the channel writer processes the queued item
             await rt.FlushAsync();
-            
+
             db.AppendCount.Should().Be(before + 1);
         }
         finally

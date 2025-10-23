@@ -14,8 +14,8 @@ using System.Threading.Tasks;
 using System.Windows.Input;
 using Avalonia.Threading;
 using FileProcessor.Infrastructure.Logging;
-using FileProcessor.UI.Services; // added
-using FileProcessor.Core.Logging; // added for scoping
+using FileProcessor.UI.Services;
+using FileProcessor.Core.Logging;
 using Serilog;
 
 namespace FileProcessor.UI.ViewModels;
@@ -77,9 +77,9 @@ public partial class FileConverterViewModel : ViewModelBase
     private bool _sortAscending = true;
 
     // Computed property for check button enabled state
-    public bool CanCheckFilesEnabled 
-    { 
-        get 
+    public bool CanCheckFilesEnabled
+    {
+        get
         {
             var result = HasSelectedWorkspaces && !IsCheckingFiles;
             return result;
@@ -101,21 +101,22 @@ public partial class FileConverterViewModel : ViewModelBase
         _opContext = opContext;
         _fileProcessingService = new FileProcessingService(opContext.ItemLogFactory);
         _settingsService = SettingsService.Instance;
-        
+
         // Create manual command with explicit CanExecute control
         CheckFilesCommand = new RelayCommand(
             execute: async () => await CheckFilesAsync(),
-            canExecute: () => {
+            canExecute: () =>
+            {
                 var canExecute = HasSelectedWorkspaces && !IsCheckingFiles;
                 return canExecute;
             });
-        
+
         // Subscribe to workspace changes
         _settingsService.WorkspaceChanged += OnWorkspaceChanged;
 
         // Set output directory from workspace settings
         UpdateOutputDirectory();
-        
+
         // Load available workspaces
         LoadAvailableWorkspaces();
 
@@ -125,7 +126,7 @@ public partial class FileConverterViewModel : ViewModelBase
     private async Task CheckFilesAsync()
     {
         var selectedWorkspaces = AvailableWorkspaces.Where(w => w.IsSelected).ToList();
-        
+
         if (!selectedWorkspaces.Any())
         {
             ProgressText = "Please select at least one workspace to check";
@@ -145,28 +146,28 @@ public partial class FileConverterViewModel : ViewModelBase
 
         IsCheckingFiles = true;
         CheckProgressText = "Loading files from selected workspaces...";
-        
+
         try
         {
             // Clear existing files
             Files.Clear();
-            
+
             // Load files from all selected workspaces
             var allFiles = new List<FileItemViewModel>();
-            
+
             foreach (var workspaceSelection in selectedWorkspaces)
             {
                 var inputDir = Path.Combine(workspaceSelection.Workspace.Path, "input");
-                
+
                 if (!Directory.Exists(inputDir))
                 {
                     CheckProgressText = $"Input directory not found for workspace: {workspaceSelection.Workspace.Name}";
                     continue;
                 }
-                
+
                 var workspaceFiles = Directory.GetFiles(inputDir, "*.txt");
                 CheckProgressText = $"Loading files from {workspaceSelection.Workspace.Name}...";
-                
+
                 foreach (var filePath in workspaceFiles)
                 {
                     var fileInfo = new FileInfo(filePath);
@@ -182,13 +183,13 @@ public partial class FileConverterViewModel : ViewModelBase
                     allFiles.Add(fileItem);
                 }
             }
-            
+
             CheckProgressText = $"Checking {allFiles.Count} files for conversion status...";
-            
+
             var needsConversion = 0;
             var upToDate = 0;
             var processedCount = 0;
-            
+
             var parallelOptions = new ParallelOptions
             {
                 CancellationToken = cancellationToken,
@@ -200,32 +201,58 @@ public partial class FileConverterViewModel : ViewModelBase
                 Parallel.ForEach(allFiles, parallelOptions, file =>
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    
+
                     // Generate expected output file path
                     var outputFileName = Path.GetFileNameWithoutExtension(file.FilePath) + "_converted.json";
                     var outputFilePath = Path.Combine(OutputDirectory, outputFileName);
-                    
-                    // Check if conversion is needed
-                    bool needsUpdate = _fileProcessingService.NeedsConversion(file.FilePath, outputFilePath);
-                    
-                    // Update file properties (thread-safe)
-                    if (needsUpdate)
+
+                    if (!File.Exists(outputFilePath)){
+                    }
+                    // First, check if the converted JSON exists — handle this case immediately
+                    if (!File.Exists(outputFilePath))
                     {
-                        file.IsSelected = true;
-                        file.UpdateStatus("Needs Update");
-                        file.ConversionNote = File.Exists(outputFilePath) ? "Output outdated" : "Not converted";
+                        // Mark as not converted and select it for conversion
                         Interlocked.Increment(ref needsConversion);
+                        _ = Dispatcher.UIThread.InvokeAsync(() =>
+                        {
+                            file.IsSelected = true;
+                            file.UpdateStatus("Not converted");
+                            file.ConversionNote = "No output";
+                        });
                     }
                     else
                     {
-                        file.IsSelected = false;
-                        file.UpdateStatus("Up to Date");
-                        file.ConversionNote = "Current";
-                        Interlocked.Increment(ref upToDate);
+                        // Output exists — compare timestamps to decide if it's up to date
+                        var inputUtc = File.GetLastWriteTimeUtc(file.FilePath);
+                        var outputUtc = File.GetLastWriteTimeUtc(outputFilePath);
+                        var delta = inputUtc - outputUtc;
+
+                        if (delta <= TimeSpan.FromSeconds(1))
+                        {
+                            // Output is newer or effectively equal
+                            Interlocked.Increment(ref upToDate);
+                            _ = Dispatcher.UIThread.InvokeAsync(() =>
+                            {
+                                file.IsSelected = false;
+                                file.UpdateStatus("Up to Date");
+                                file.ConversionNote = "Current";
+                            });
+                        }
+                        else
+                        {
+                            // Output is older than input — needs update
+                            Interlocked.Increment(ref needsConversion);
+                            _ = Dispatcher.UIThread.InvokeAsync(() =>
+                            {
+                                file.IsSelected = true;
+                                file.UpdateStatus("Output outdated");
+                                file.ConversionNote = "Output outdated";
+                            });
+                        }
                     }
-                    
+
                     var currentCount = Interlocked.Increment(ref processedCount);
-                    
+
                     // Update UI progress on main thread less frequently (every 10 files)
                     if (currentCount % 10 == 0 || currentCount == allFiles.Count)
                     {
@@ -236,7 +263,7 @@ public partial class FileConverterViewModel : ViewModelBase
                     }
                 });
             }, cancellationToken);
-            
+
             // Sort files by status then filename before adding to UI
             var sortedFiles = allFiles
                 .OrderBy(f => f.Status)
@@ -249,16 +276,16 @@ public partial class FileConverterViewModel : ViewModelBase
                 fileItem.PropertyChanged += OnFileSelectionChanged;
                 Files.Add(fileItem);
             }
-            
+
             // Update SelectAll state based on selections
             var selectedCount = Files.Count(f => f.IsSelected);
             SelectedFileCount = selectedCount;
             SelectAll = selectedCount == Files.Count;
-            
+
             // Set default sort column to status
             SortColumn = "status";
             SortAscending = true;
-            
+
             ProgressText = $"Check complete: {allFiles.Count} total files, {needsConversion} need conversion, {upToDate} up to date, {selectedCount} selected";
             CheckProgressText = "Check complete";
         }
@@ -464,10 +491,10 @@ public partial class FileConverterViewModel : ViewModelBase
             IsProcessing = false;
             _processingCancellationTokenSource?.Dispose();
             _processingCancellationTokenSource = null;
-            
+
             // Ensure logs are flushed before opening viewer
             try { Serilog.Log.CloseAndFlush(); } catch { /* ignore */ }
-            
+
             // Open viewer to show the conversion run logs
             UILoggingService.ShowLogViewer(); // open viewer after batch
         }
@@ -490,7 +517,7 @@ public partial class FileConverterViewModel : ViewModelBase
         try
         {
             var processedDir = _settingsService.ProcessedDirectory;
-            
+
             if (!string.IsNullOrEmpty(processedDir))
             {
                 // Ensure the directory exists
@@ -498,7 +525,7 @@ public partial class FileConverterViewModel : ViewModelBase
                 {
                     Directory.CreateDirectory(processedDir);
                 }
-                
+
                 OutputDirectory = processedDir;
                 HasOutputDirectory = true;
                 ProgressText = $"Output directory: {OutputDirectory}";
@@ -524,7 +551,7 @@ public partial class FileConverterViewModel : ViewModelBase
         {
             file.IsSelected = SelectAll;
         }
-        
+
         // Update selected count
         SelectedFileCount = SelectAll ? Files.Count : 0;
     }
@@ -547,7 +574,7 @@ public partial class FileConverterViewModel : ViewModelBase
             // Update SelectAll state based on individual file selections
             var allSelected = Files.All(f => f.IsSelected);
             var noneSelected = Files.All(f => !f.IsSelected);
-            
+
             if (allSelected)
             {
                 SelectAll = true;
@@ -556,7 +583,7 @@ public partial class FileConverterViewModel : ViewModelBase
             {
                 SelectAll = false;
             }
-            
+
             // Update selected count
             SelectedFileCount = Files.Count(f => f.IsSelected);
         }
@@ -571,7 +598,7 @@ public partial class FileConverterViewModel : ViewModelBase
     private void LoadAvailableWorkspaces()
     {
         AvailableWorkspaces.Clear();
-        
+
         foreach (var workspace in _settingsService.Workspaces)
         {
             var workspaceSelection = new WorkspaceSelectionViewModel
@@ -582,10 +609,10 @@ public partial class FileConverterViewModel : ViewModelBase
             workspaceSelection.PropertyChanged += OnWorkspaceSelectionChanged;
             AvailableWorkspaces.Add(workspaceSelection);
         }
-        
+
         HasAvailableWorkspaces = AvailableWorkspaces.Count > 0;
         UpdateHasSelectedWorkspaces();
-        
+
         // Debug: Update progress text to show workspace count
         if (AvailableWorkspaces.Count == 0)
         {
@@ -602,7 +629,7 @@ public partial class FileConverterViewModel : ViewModelBase
         if (e.PropertyName == nameof(WorkspaceSelectionViewModel.IsSelected))
         {
             UpdateHasSelectedWorkspaces();
-            
+
             // Debug: Show which workspace was toggled
             if (sender is WorkspaceSelectionViewModel workspace)
             {
@@ -615,9 +642,9 @@ public partial class FileConverterViewModel : ViewModelBase
     {
         var selectedCount = AvailableWorkspaces.Count(w => w.IsSelected);
         var newValue = selectedCount > 0;
-        
+
         HasSelectedWorkspaces = newValue;
-        
+
         ProgressText = $"Button should now be {(newValue ? "ENABLED" : "DISABLED")} - HasSelectedWorkspaces = {HasSelectedWorkspaces}";
     }
 
@@ -689,20 +716,20 @@ public partial class FileConverterViewModel : ViewModelBase
         // Create a sorted list
         IEnumerable<FileItemViewModel> sortedFiles = columnName.ToLower() switch
         {
-            "filename" => SortAscending 
-                ? Files.OrderBy(f => f.FileName) 
+            "filename" => SortAscending
+                ? Files.OrderBy(f => f.FileName)
                 : Files.OrderByDescending(f => f.FileName),
-            "filesize" => SortAscending 
-                ? Files.OrderBy(f => GetFileSizeForSorting(f.FileSize)) 
+            "filesize" => SortAscending
+                ? Files.OrderBy(f => GetFileSizeForSorting(f.FileSize))
                 : Files.OrderByDescending(f => GetFileSizeForSorting(f.FileSize)),
-            "lastmodified" => SortAscending 
-                ? Files.OrderBy(f => DateTime.TryParse(f.LastModified, out var date) ? date : DateTime.MinValue) 
+            "lastmodified" => SortAscending
+                ? Files.OrderBy(f => DateTime.TryParse(f.LastModified, out var date) ? date : DateTime.MinValue)
                 : Files.OrderByDescending(f => DateTime.TryParse(f.LastModified, out var date) ? date : DateTime.MinValue),
-            "status" => SortAscending 
-                ? Files.OrderBy(f => f.Status) 
+            "status" => SortAscending
+                ? Files.OrderBy(f => f.Status)
                 : Files.OrderByDescending(f => f.Status),
-            "workspace" => SortAscending 
-                ? Files.OrderBy(f => f.WorkspaceName) 
+            "workspace" => SortAscending
+                ? Files.OrderBy(f => f.WorkspaceName)
                 : Files.OrderByDescending(f => f.WorkspaceName),
             _ => Files
         };
