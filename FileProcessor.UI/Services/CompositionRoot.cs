@@ -1,16 +1,14 @@
 using System;
-using Microsoft.Extensions.DependencyInjection;
+using FileProcessor.Core.Abstractions;
+using FileProcessor.Core.App;
 using FileProcessor.Core.Interfaces;
 using FileProcessor.Core.Logging;
 using FileProcessor.Core.Workspace;
+using FileProcessor.Infrastructure.Abstractions;
+using FileProcessor.Infrastructure.App;
 using FileProcessor.Infrastructure.Logging;
 using FileProcessor.Infrastructure.Workspace;
-using FileProcessor.Core;
-using FileProcessor.Core.App;
-using FileProcessor.Infrastructure.App;
-using LogViewer.UI.ViewModels;
-using FileProcessor.Core.Abstractions;
-using FileProcessor.Infrastructure.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace FileProcessor.UI.Services;
 

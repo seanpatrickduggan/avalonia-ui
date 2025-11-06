@@ -206,7 +206,8 @@ public partial class FileConverterViewModel : ViewModelBase
                     var outputFileName = Path.GetFileNameWithoutExtension(file.FilePath) + "_converted.json";
                     var outputFilePath = Path.Combine(OutputDirectory, outputFileName);
 
-                    if (!File.Exists(outputFilePath)){
+                    if (!File.Exists(outputFilePath))
+                    {
                     }
                     // First, check if the converted JSON exists — handle this case immediately
                     if (!File.Exists(outputFilePath))
