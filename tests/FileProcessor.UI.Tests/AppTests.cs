@@ -1,8 +1,7 @@
-using System;
-using System.IO;
 using FileProcessor.Core;
-using FileProcessor.UI.Services;
+
 using FluentAssertions;
+
 using Xunit;
 
 namespace FileProcessor.UI.Tests;

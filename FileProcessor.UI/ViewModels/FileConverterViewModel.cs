@@ -13,10 +13,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using Avalonia.Threading;
-using FileProcessor.Infrastructure.Logging;
 using FileProcessor.UI.Services;
 using FileProcessor.Core.Logging;
-using Serilog;
 
 namespace FileProcessor.UI.ViewModels;
 

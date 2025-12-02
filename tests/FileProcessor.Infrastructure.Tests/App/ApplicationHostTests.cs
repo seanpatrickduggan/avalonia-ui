@@ -1,9 +1,8 @@
-using System.Threading;
-using System.Threading.Tasks;
-using FileProcessor.Core.App;
 using FileProcessor.Core.Workspace;
 using FileProcessor.Infrastructure.App;
+
 using FluentAssertions;
+
 using Xunit;
 
 namespace FileProcessor.Infrastructure.Tests.App;

@@ -1,11 +1,11 @@
-using System;
-using System.Collections.Generic;
-using System.Text.Json;
 using FileProcessor.Core.Workspace;
 using FileProcessor.Infrastructure.Logging;
+
 using FluentAssertions;
+
 using Serilog.Events;
 using Serilog.Parsing;
+
 using Xunit;
 
 namespace FileProcessor.Infrastructure.Tests.Logging;

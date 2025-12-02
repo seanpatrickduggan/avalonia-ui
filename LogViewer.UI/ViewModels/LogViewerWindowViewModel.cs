@@ -1,13 +1,10 @@
-using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.IO;
-using System.Linq;
-using System.Text.Json;
-using System.Threading.Tasks;
+
 using Avalonia.Threading;
+
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+
 using FileProcessor.Core.Logging;
 using FileProcessor.Core.Workspace;
 

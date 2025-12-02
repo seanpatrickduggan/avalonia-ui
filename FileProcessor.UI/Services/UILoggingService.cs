@@ -1,9 +1,5 @@
-using System;
 using Avalonia;
-using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
-using FileProcessor.UI.Views;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace FileProcessor.UI.Services;
 

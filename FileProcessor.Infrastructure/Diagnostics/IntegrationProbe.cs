@@ -1,7 +1,3 @@
-using System;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using FileProcessor.Core.Workspace;
 
 namespace FileProcessor.Infrastructure.Diagnostics;

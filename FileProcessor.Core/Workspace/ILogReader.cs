@@ -1,7 +1,3 @@
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
-
 namespace FileProcessor.Core.Workspace;
 
 // Abstraction for reading logs from different backends (SQLite, JSONL, etc.)

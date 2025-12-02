@@ -1,13 +1,14 @@
-using System;
-using System.IO;
-using System.Threading.Tasks;
+#pragma warning disable CS0067
 using FileProcessor.Core.Abstractions;
 using FileProcessor.Core.Interfaces;
 using FileProcessor.Core.Workspace;
 using FileProcessor.Infrastructure.Abstractions;
 using FileProcessor.Infrastructure.Logging;
+
 using FluentAssertions;
+
 using Microsoft.Extensions.Time.Testing;
+
 using Xunit;
 
 namespace FileProcessor.Infrastructure.Tests;
@@ -165,3 +166,5 @@ public class OperationContextServiceTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => svc.StartNewOperationAsync("test-op"));
     }
 }
+
+#pragma warning restore CS0067

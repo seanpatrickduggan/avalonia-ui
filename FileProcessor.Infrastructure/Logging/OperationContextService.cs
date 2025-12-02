@@ -1,10 +1,6 @@
-using System;
-using System.IO;
-using System.Threading.Tasks;
 using FileProcessor.Core.Logging;
 using FileProcessor.Core.Workspace;
 using Serilog;
-using Serilog.Core;
 using FileProcessor.Core.Interfaces; // settings service
 using FileProcessor.Core.Abstractions; // fs
 

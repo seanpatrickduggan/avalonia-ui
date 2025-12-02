@@ -1,5 +1,4 @@
 using Microsoft.Extensions.DependencyInjection;
-using System;
 using FileProcessor.Core.Workspace;
 using FileProcessor.Core.Logging;
 

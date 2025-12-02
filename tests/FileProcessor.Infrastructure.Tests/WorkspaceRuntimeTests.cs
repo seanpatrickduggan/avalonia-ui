@@ -1,15 +1,13 @@
-using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
+
 using FileProcessor.Core.Abstractions;
 using FileProcessor.Core.Interfaces;
 using FileProcessor.Core.Workspace;
 using FileProcessor.Infrastructure.Abstractions;
 using FileProcessor.Infrastructure.Workspace;
+
 using FluentAssertions;
+
 using Xunit;
 
 namespace FileProcessor.Infrastructure.Tests;

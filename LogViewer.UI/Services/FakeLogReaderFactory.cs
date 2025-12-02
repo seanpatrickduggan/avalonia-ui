@@ -1,10 +1,5 @@
 using FileProcessor.Core.Workspace;
 using FileProcessor.Core.Logging;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace LogViewer.UI.Services;
 

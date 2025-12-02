@@ -1,9 +1,9 @@
-using System.IO;
 using System.Text;
-using System.Threading.Tasks;
-using FileProcessor.Core.Abstractions;
+
 using FileProcessor.Infrastructure.Abstractions;
+
 using FluentAssertions;
+
 using Xunit;
 
 namespace FileProcessor.Infrastructure.Tests.Abstractions;

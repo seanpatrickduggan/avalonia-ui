@@ -1,5 +1,3 @@
-using System;
-
 namespace FileProcessor.Core.Logging;
 
 public static class ItemLogExtensions

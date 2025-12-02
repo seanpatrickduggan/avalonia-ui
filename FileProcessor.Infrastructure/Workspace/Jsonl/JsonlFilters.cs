@@ -1,4 +1,3 @@
-using System;
 using FileProcessor.Core.Workspace;
 
 namespace FileProcessor.Infrastructure.Workspace.Jsonl;

@@ -1,7 +1,8 @@
-using System.Threading.Tasks;
 using FileProcessor.Core.Workspace;
 using FileProcessor.Infrastructure.Workspace;
+
 using FluentAssertions;
+
 using Xunit;
 
 namespace FileProcessor.Infrastructure.Tests;

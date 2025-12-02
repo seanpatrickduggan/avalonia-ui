@@ -1,10 +1,12 @@
-using System;
 using FileProcessor.Core.Logging;
 using FileProcessor.Infrastructure.Logging;
+
 using FluentAssertions;
+
 using Serilog;
 using Serilog.Core;
 using Serilog.Events;
+
 using Xunit;
 
 namespace FileProcessor.Infrastructure.Tests.Logging;

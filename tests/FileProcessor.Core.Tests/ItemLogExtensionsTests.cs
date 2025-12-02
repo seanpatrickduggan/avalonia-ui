@@ -1,10 +1,9 @@
-using System;
-using System.IO;
-using System.Linq;
 using System.Text.Json;
-using System.Collections.Generic;
+
 using FileProcessor.Core.Logging;
+
 using FluentAssertions;
+
 using Xunit;
 
 namespace FileProcessor.Core.Tests;

@@ -1,6 +1,3 @@
-using System.Threading;
-using System.Threading.Tasks;
-
 namespace FileProcessor.Core.App;
 
 public interface IApplicationHost

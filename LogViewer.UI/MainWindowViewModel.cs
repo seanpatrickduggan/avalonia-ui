@@ -2,16 +2,9 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using FileProcessor.Core.Logging;
 using System.Collections.ObjectModel;
-using System.IO;
 using System.Text.Json;
 using Avalonia.Platform.Storage;
-using Avalonia.Controls;
-using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
-using System;
-using System.Linq;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 
 namespace LogViewer.UI;
 

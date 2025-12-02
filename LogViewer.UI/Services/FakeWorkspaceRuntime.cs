@@ -1,5 +1,4 @@
 using FileProcessor.Core.Workspace;
-using System.Threading.Tasks;
 
 namespace LogViewer.UI.Services;
 

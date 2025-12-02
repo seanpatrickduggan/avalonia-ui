@@ -1,7 +1,8 @@
-using System;
 using System.Globalization;
+
 using Avalonia.Data.Converters;
 using Avalonia.Media;
+
 using FileProcessor.Core.Logging;
 
 namespace LogViewer.UI.Converters;

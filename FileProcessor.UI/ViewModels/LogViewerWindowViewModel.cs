@@ -1,6 +1,5 @@
 using FileProcessor.Core.Workspace;
 using FileProcessor.Core.Logging;
-using LogViewer.UI.ViewModels;
 
 namespace FileProcessor.UI.ViewModels;
 

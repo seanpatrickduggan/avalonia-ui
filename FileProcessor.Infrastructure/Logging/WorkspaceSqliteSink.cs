@@ -1,10 +1,8 @@
-using System;
 using FileProcessor.Core.Workspace;
 using Serilog.Core;
 using Serilog.Events;
 using System.Text.Json;
 using Serilog.Debugging; // debug-only diagnostics
-using System.Threading; // Interlocked
 
 namespace FileProcessor.Infrastructure.Logging;
 

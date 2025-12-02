@@ -1,11 +1,5 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
 using Avalonia.Headless.XUnit;
 using FluentAssertions;
-using Xunit;
 using FileProcessor.UI.ViewModels;
 using FileProcessor.Core.Workspace;
 using FileProcessor.Core.Logging;

@@ -1,7 +1,3 @@
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
-
 namespace FileProcessor.Core.Abstractions;
 
 public interface IFileSystem

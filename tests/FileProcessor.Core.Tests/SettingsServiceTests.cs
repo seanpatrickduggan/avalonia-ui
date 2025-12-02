@@ -1,11 +1,9 @@
-using System;
-using System.IO;
-using System.Linq;
 using System.Text.Json;
-using System.Threading.Tasks;
-using FileProcessor.Core;
+
 using FileProcessor.Core.Interfaces;
+
 using FluentAssertions;
+
 using Xunit;
 
 namespace FileProcessor.Core.Tests;

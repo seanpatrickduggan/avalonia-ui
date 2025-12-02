@@ -1,5 +1,5 @@
-using System;
 using FileProcessor.Core.Logging;
+
 using Serilog;
 using Serilog.Events;
 

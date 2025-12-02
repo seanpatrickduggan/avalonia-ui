@@ -3,14 +3,9 @@ using CommunityToolkit.Mvvm.Input;
 
 using FileProcessor.Core;
 using System.IO;
-using FileProcessor.Infrastructure.Logging;
 using FileProcessor.UI.Services;
 using FileProcessor.Core.Logging;
 using System.Collections.ObjectModel;
-using FileProcessor.UI.Views;
-using Avalonia.Controls;
-using Avalonia;
-using Avalonia.Controls.ApplicationLifetimes;
 
 namespace FileProcessor.UI.ViewModels
 {
