@@ -124,7 +124,7 @@ public class WorkspaceRuntimeTests
     }
 
     [Fact]
-    public async Task Dispose_calls_db_Dispose()
+    public void Dispose_calls_db_Dispose()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), "wr-test-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
