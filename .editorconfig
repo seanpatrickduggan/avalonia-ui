@@ -1,0 +1,11 @@
+root = true
+
+[*.cs]
+# Sort and group usings
+dotnet_sort_system_directives_first = true
+dotnet_separate_import_directive_groups = true
+# Prefer removing unnecessary usings via analyzer
+dotnet_diagnostic.IDE0005.severity = warning
+
+[tests/**/*.cs]
+dotnet_diagnostic.CS0067.severity = none
