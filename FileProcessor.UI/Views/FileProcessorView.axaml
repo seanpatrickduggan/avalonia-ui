@@ -12,7 +12,6 @@
   <StackPanel Spacing="16" Margin="24">
     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
       <TextBlock Text="File Processor" FontSize="24" FontWeight="Bold"/>
-      <TextBlock Text="{Binding AppVersion}" FontSize="12" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
     </StackPanel>
 
     <Border BorderBrush="{DynamicResource SystemControlForegroundBaseMediumBrush}"
@@ -21,7 +20,6 @@
             Padding="16">
       <StackPanel Spacing="10" HorizontalAlignment="Center">
         <TextBlock Text="Welcome" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center"/>
-        <TextBlock Text="You are running:" FontSize="12" Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" HorizontalAlignment="Center"/>
         <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
           <TextBlock Text="File Processor" FontSize="14" FontWeight="SemiBold"/>
           <TextBlock Text="{Binding AppVersion}" FontSize="14" FontWeight="Bold"/>
