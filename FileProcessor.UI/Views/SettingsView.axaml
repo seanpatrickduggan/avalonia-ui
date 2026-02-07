@@ -247,7 +247,7 @@
               Padding="20">
         <StackPanel Spacing="10">
           <TextBlock Text="About" FontSize="18" FontWeight="SemiBold"/>
-          <TextBlock Text="Fileonia - File Processing Application" FontSize="14"/>
+          <TextBlock Text="File Processor - File Processing Application" FontSize="14"/>
           <TextBlock Text="Version 1.0.0" FontSize="12" Opacity="0.7"/>
           <TextBlock Text="Built with Avalonia UI and .NET 8" FontSize="12" Opacity="0.7"/>
         </StackPanel>

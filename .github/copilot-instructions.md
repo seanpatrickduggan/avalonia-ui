@@ -1,80 +1,43 @@
-## Quick context
+## Quick Context
+- Solution targets .NET 8 with Avalonia 11; major projects are `FileProcessor.Core`, `FileProcessor.Infrastructure`, `FileProcessor.UI`, `LogViewer.UI`, and matching `tests/*` suites.
+- `FileProcessor.Core` hosts domain services; Infrastructure layers system/SQLite integrations; UI reuses `LogViewer.UI` pieces for the log window instead of duplicating code.
 
-This repository is a modular .NET 8 desktop example using Avalonia UI. Main pieces:
+## Architecture Points
+- `FileProcessor.UI/Services/CompositionRoot.cs` is the DI entry point: registers `SettingsService.Instance`, `WorkspaceRuntime`, Serilog sinks, window factories, and every ViewModel.
+- `FileProcessor.Infrastructure/Workspace/WorkspaceRuntime.cs` owns workspace SQLite state (`IWorkspaceDb`), tracks sessions/operations, and implements `ILogAppender` for log ingestion.
+- Logging flow: `WorkspaceSqliteSink` (Serilog) → `WorkspaceLogWriteTarget` → `WorkspaceRuntime` bounded channel → SQLite; ensure runtime is initialized before expecting logs on disk.
+- File services (`FileGenerationService`, `FileProcessingService`) expose sync/async APIs with `IProgress<(completed,total)>` and optional `IItemLogFactory` scopes for structured telemetry.
+- `SettingsService` persists under `%AppData%/FileProcessor/settings.json`; its `WorkspaceDirectory` config drives workspace DB/log locations and input/processed folder creation.
 
-- `FileProcessor.UI/` — Avalonia presentation (Views, ViewModels, Services).
-- `FileProcessor.Core/` — Business logic and service implementations (IFileGenerationService, IFileProcessingService).
-- `FileProcessor.Infrastructure/` — Host app wiring, workspace implementations, logging sinks (SQLite), and test fakes.
-- `FileProcessor.Generator/` — CLI-style generator tool (utility; may be absent in trimmed view).
+## Patterns & Conventions
+- MVVM uses CommunityToolkit attributes (`[ObservableProperty]`, `[RelayCommand]`); inspect `FileProcessor.UI/ViewModels` for canonical usage.
+- UI code should stick to injected services; filesystem access goes through `IFileSystem` (`SystemFileSystem` runtime, fakes in tests).
+- New services/contracts live under `*/Interfaces/` and are registered in the composition root; avoid wiring singletons ad hoc.
+- `SettingsService.WorkspaceChanged` must be raised when mutating workspaces so `WorkspaceRuntime` reacts; tests assert this behaviour.
+- Use `IOperationContext`/`IWorkspaceRuntime` to wrap long tasks so logs and SQLite operations stay correlated.
 
-Primary goals when editing code here:
+## Daily Commands
+- Restore and build: `dotnet restore` then `dotnet build FileProcessor.sln`.
+- Launch desktop app: `dotnet run --project FileProcessor.UI`.
+- Run generator utility: `dotnet run --project FileProcessor.Generator`.
+- Execute unit tests: `dotnet test` or point at a specific `tests/*.csproj`.
+- Coverage workflow is automated via VS Code task `coverage: full` (clean → build → collect → report).
 
-- Preserve interface-based contracts in `*/Interfaces/` and implement behind DI where appropriate.
-- Keep UI code strictly MVVM (look at `FileProcessor.UI/ViewModels/*` for examples using CommunityToolkit.Mvvm).
+## Integration Notes
+- Avalonia bootstrap (`FileProcessor.UI/Program.cs`) forbids invoking Avalonia APIs before `BuildAvaloniaApp`; keep new static initialization framework-agnostic.
+- Workspace artefacts (`workspace.db`, `logs/operation-*.jsonl`) live under the active workspace; guard any feature behind a configured `SettingsService.WorkspaceDirectory`.
+- `WorkspaceRuntime` uses a bounded channel that drops oldest writes when saturated—call `FlushAsync`/`ShutdownAsync` (see `ApplicationHost`) before exit to persist remaining logs.
+- Structured logs expect `cat`/`sub`/`item` properties; rely on `IItemLogFactory` (see `FileProcessingService.ProcessFilesWithLogs`) for consistent payloads instead of ad hoc logging.
+- Long-running file ops should run off the UI thread and report progress; follow `FileGeneratorViewModel.GenerateFiles` pattern with `Task.Run` + progress callbacks.
 
-## What to know before editing
+## Testing Guidance
+- Tests mirror layers: Core tests cover services, Infrastructure tests exercise SQLite and filesystem abstractions, Integration tests spin up DI via `IntegrationProbe`.
+- UI tests (`tests/FileProcessor.UI.Tests/AppTests.cs`) lock down DI wiring and logging registration—update expectations when altering `CompositionRoot`.
+- When interacting with `SettingsService`, use constructor overloads with temp paths (see tests) to avoid polluting real user settings.
 
-- Target framework: .NET 8. Use `dotnet` CLI for restore/build/run and the same runtime for tests.
-- UI is Avalonia 11.x — avoid calling Avalonia-specific APIs during static initialization (see `FileProcessor.UI/Program.cs` comment).
-- Project prefers small, focused services. Example: `FileProcessor.Core/FileGenerationService.cs` exposes async overloads with optional `IProgress<T>` reporting.
-- Logging and workspace persistence live in `FileProcessor.Infrastructure/Workspace/` (look for `WorkspaceSqliteSink`, `SqliteWorkspaceDb`, `WorkspaceDbService`).
-
-## Typical developer workflows (concrete commands)
-
-- Restore & build entire solution:
-
-  dotnet restore; dotnet build
-
-- Run the UI app:
-
-  dotnet run --project FileProcessor.UI
-
-- Run core unit tests (project names under `tests/`):
-
-  dotnet test
-
-Notes: there are Nix helper files (`nix/shell.nix`, `flake.nix`) in this repo — optional for reproducible builds but not required on Windows.
-
-## Project-specific patterns & conventions
-
-- MVVM: ViewModels use CommunityToolkit.Mvvm source generators: attributes like `[ObservableProperty]` and `[RelayCommand]`. Check `FileGeneratorViewModel` for common patterns.
-- Services: Core services provide both sync and async variants (e.g., `GenerateFilesAsync`, `GenerateFileAsync`) and take optional progress callbacks.
-- Interfaces live under `*/Interfaces/` and are small, test-friendly contracts. Prefer using interfaces in constructors over concrete types for testability.
-- Workspace settings: `SettingsService` is a singleton used by UI ViewModels (see `SettingsService.Instance` usage in `FileGeneratorViewModel`). When changing settings code, update subscription handling (`WorkspaceChanged` event).
-- Logging: item-level structured logging is implemented via `IItemLogFactory` and `IItemLog` in `FileProcessor.Core/Logging` and wired to SQLite in `Infrastructure/Logging/WorkspaceSqliteSink.cs`.
-
-## Integration points & gotchas
-
-- Database: workspace persistence uses a local SQLite file and a custom sink. Tests may use `FakeFileSystem` / `FakeTimeProvider` in `FileProcessor.Infrastructure/Abstractions`.
-- UI thread: long-running work must run off the UI thread and report progress via `IProgress<T>` (see `FileGeneratorViewModel.GenerateFiles`).
-- Avalonia startup: don't touch Avalonia-dependent code before `AppMain` (see `Program.cs` comment).
-
-## Files to reference when making changes
-
-- Architecture & onboarding: `README.md` (root).
-- DI / Host wiring: `FileProcessor.Infrastructure/App/ApplicationHost.cs` and `FileProcessor.Infrastructure/Logging/WorkspaceRunStructuredLogger.cs`.
-- Example services: `FileProcessor.Core/FileGenerationService.cs`, `FileProcessor.Core/FileProcessingService.cs`.
-- UI examples: `FileProcessor.UI/Program.cs`, `FileProcessor.UI/ViewModels/FileGeneratorViewModel.cs`, `FileProcessor.UI/Views/*`.
-- Tests: `tests/` — follow existing naming and use `dotnet test`.
-
-## Short examples you can follow
-
-- Implement a new background service callable from the UI:
-  - Add interface to `FileProcessor.Core/Interfaces/`.
-  - Implement in Core or Infrastructure and expose async methods with `IProgress<T>` support.
-  - Inject into a ViewModel via constructor (use the singleton `SettingsService.Instance` only for global settings).
-
-- Add a workspace-backed logger entry:
-  - Use `IItemLogFactory` to create a scope: see `FileProcessingService.ProcessFilesWithLogs`.
-
-## What to avoid
-
-- Avoid direct file I/O in UI code without a FileSystem abstraction; prefer `IFileSystem` / `SystemFileSystem` fakes for tests.
-- Avoid modifying Avalonia startup order or calling Avalonia APIs before `BuildAvaloniaApp()` completes.
-
-## If you're adding tests
-
-- Prefer the existing test projects under `tests/` and mirror patterns: small, focused unit tests that use fakes from `FileProcessor.Infrastructure/Abstractions`.
-
----
-If anything in these notes is unclear or you want me to expand examples (DI registration, tests, or a PR template), tell me which section to iterate on.
+## Pitfalls & Tips
+- Do not touch user folders outside `SettingsService.WorkspaceDirectory`; create subdirectories via the provided abstractions.
+- Preserve cross-platform compatibility (`Path.Combine`, avoid Windows-only APIs or sync IO on UI thread).
+- Keep new services focused and async-friendly; expose cancellation tokens and progress when adding long-running work.
+- Only register one Serilog `WorkspaceSqliteSink`; the debug guard will warn if multiple sinks are added.
+- Register any new UI windows/viewmodels in `CompositionRoot` so both runtime and tests can resolve them.

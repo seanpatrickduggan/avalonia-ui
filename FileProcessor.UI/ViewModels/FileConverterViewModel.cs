@@ -9,6 +9,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
@@ -25,6 +26,8 @@ public partial class FileConverterViewModel : ViewModelBase
     private readonly IOperationContext _opContext;
     private CancellationTokenSource? _checkCancellationTokenSource;
     private CancellationTokenSource? _processingCancellationTokenSource;
+    private bool _isBulkSelectionUpdate;
+    private List<FileItemViewModel> _allFiles = new();
 
     [ObservableProperty]
     private bool _isProcessing;
@@ -73,6 +76,9 @@ public partial class FileConverterViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _sortAscending = true;
+
+    [ObservableProperty]
+    private string _fileSearchText = "";
 
     // Computed property for check button enabled state
     public bool CanCheckFilesEnabled
@@ -188,6 +194,10 @@ public partial class FileConverterViewModel : ViewModelBase
             var upToDate = 0;
             var processedCount = 0;
 
+            var selectionResults = new bool[allFiles.Count];
+            var statusResults = new string[allFiles.Count];
+            var noteResults = new string[allFiles.Count];
+
             var parallelOptions = new ParallelOptions
             {
                 CancellationToken = cancellationToken,
@@ -196,64 +206,56 @@ public partial class FileConverterViewModel : ViewModelBase
 
             await Task.Run(() =>
             {
-                Parallel.ForEach(allFiles, parallelOptions, file =>
+                Parallel.For(0, allFiles.Count, parallelOptions, i =>
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
-                    // Generate expected output file path
+                    var file = allFiles[i];
                     var outputFileName = Path.GetFileNameWithoutExtension(file.FilePath) + "_converted.json";
                     var outputFilePath = Path.Combine(OutputDirectory, outputFileName);
 
                     if (!File.Exists(outputFilePath))
                     {
-                    }
-                    // First, check if the converted JSON exists — handle this case immediately
-                    if (!File.Exists(outputFilePath))
-                    {
-                        // Mark as not converted and select it for conversion
                         Interlocked.Increment(ref needsConversion);
-                        _ = Dispatcher.UIThread.InvokeAsync(() =>
-                        {
-                            file.IsSelected = true;
-                            file.UpdateStatus("Not converted");
-                            file.ConversionNote = "No output";
-                        });
+                        selectionResults[i] = true;
+                        statusResults[i] = "Not converted";
+                        noteResults[i] = "No output";
                     }
                     else
                     {
-                        // Output exists — compare timestamps to decide if it's up to date
+                        var buildMatch = IsOutputBuildMatch(outputFilePath);
+                        if (!buildMatch)
+                        {
+                            Interlocked.Increment(ref needsConversion);
+                            selectionResults[i] = true;
+                            statusResults[i] = "Build mismatch";
+                            noteResults[i] = "Version/hash changed";
+                        }
+                        else
+                        {
                         var inputUtc = File.GetLastWriteTimeUtc(file.FilePath);
                         var outputUtc = File.GetLastWriteTimeUtc(outputFilePath);
                         var delta = inputUtc - outputUtc;
 
                         if (delta <= TimeSpan.FromSeconds(1))
                         {
-                            // Output is newer or effectively equal
                             Interlocked.Increment(ref upToDate);
-                            _ = Dispatcher.UIThread.InvokeAsync(() =>
-                            {
-                                file.IsSelected = false;
-                                file.UpdateStatus("Up to Date");
-                                file.ConversionNote = "Current";
-                            });
+                            selectionResults[i] = false;
+                            statusResults[i] = "Up to Date";
+                            noteResults[i] = "Current";
                         }
                         else
                         {
-                            // Output is older than input — needs update
                             Interlocked.Increment(ref needsConversion);
-                            _ = Dispatcher.UIThread.InvokeAsync(() =>
-                            {
-                                file.IsSelected = true;
-                                file.UpdateStatus("Output outdated");
-                                file.ConversionNote = "Output outdated";
-                            });
+                            selectionResults[i] = true;
+                            statusResults[i] = "Output outdated";
+                            noteResults[i] = "Output outdated";
+                        }
                         }
                     }
 
                     var currentCount = Interlocked.Increment(ref processedCount);
-
-                    // Update UI progress on main thread less frequently (every 10 files)
-                    if (currentCount % 10 == 0 || currentCount == allFiles.Count)
+                    if (currentCount % 25 == 0 || currentCount == allFiles.Count)
                     {
                         _ = Dispatcher.UIThread.InvokeAsync(() =>
                         {
@@ -263,29 +265,33 @@ public partial class FileConverterViewModel : ViewModelBase
                 });
             }, cancellationToken);
 
+            for (var i = 0; i < allFiles.Count; i++)
+            {
+                var file = allFiles[i];
+                file.IsSelected = selectionResults[i];
+                file.UpdateStatus(statusResults[i]);
+                file.ConversionNote = noteResults[i];
+            }
+
             // Sort files by status then filename before adding to UI
             var sortedFiles = allFiles
                 .OrderBy(f => f.Status)
                 .ThenBy(f => f.FileName)
                 .ToList();
 
-            // Add all files to the UI collection
             foreach (var fileItem in sortedFiles)
             {
                 fileItem.PropertyChanged += OnFileSelectionChanged;
-                Files.Add(fileItem);
             }
 
-            // Update SelectAll state based on selections
-            var selectedCount = Files.Count(f => f.IsSelected);
-            SelectedFileCount = selectedCount;
-            SelectAll = selectedCount == Files.Count;
-
-            // Set default sort column to status
+            // Set default sort column to status before applying filter
             SortColumn = "status";
             SortAscending = true;
 
-            ProgressText = $"Check complete: {allFiles.Count} total files, {needsConversion} need conversion, {upToDate} up to date, {selectedCount} selected";
+            _allFiles = sortedFiles;
+            ApplyFileFilter();
+
+            ProgressText = $"Check complete: {allFiles.Count} total files, {needsConversion} need conversion, {upToDate} up to date, {SelectedFileCount} selected";
             CheckProgressText = "Check complete";
         }
         catch (OperationCanceledException)
@@ -546,12 +552,25 @@ public partial class FileConverterViewModel : ViewModelBase
     [RelayCommand]
     private void ToggleSelectAll()
     {
-        foreach (var file in Files)
+        if (!Files.Any())
         {
-            file.IsSelected = SelectAll;
+            SelectedFileCount = 0;
+            return;
         }
 
-        // Update selected count
+        try
+        {
+            _isBulkSelectionUpdate = true;
+            foreach (var file in Files)
+            {
+                file.IsSelected = SelectAll;
+            }
+        }
+        finally
+        {
+            _isBulkSelectionUpdate = false;
+        }
+
         SelectedFileCount = SelectAll ? Files.Count : 0;
     }
 
@@ -570,21 +589,14 @@ public partial class FileConverterViewModel : ViewModelBase
     {
         if (e.PropertyName == nameof(FileItemViewModel.IsSelected))
         {
-            // Update SelectAll state based on individual file selections
-            var allSelected = Files.All(f => f.IsSelected);
-            var noneSelected = Files.All(f => !f.IsSelected);
-
-            if (allSelected)
+            if (_isBulkSelectionUpdate)
             {
-                SelectAll = true;
-            }
-            else if (noneSelected)
-            {
-                SelectAll = false;
+                return;
             }
 
-            // Update selected count
-            SelectedFileCount = Files.Count(f => f.IsSelected);
+            var selectedCount = Files.Count(f => f.IsSelected);
+            SelectedFileCount = selectedCount;
+            SelectAll = selectedCount == Files.Count && Files.Count > 0;
         }
     }
 
@@ -712,34 +724,60 @@ public partial class FileConverterViewModel : ViewModelBase
             SortAscending = true;
         }
 
-        // Create a sorted list
-        IEnumerable<FileItemViewModel> sortedFiles = columnName.ToLower() switch
-        {
-            "filename" => SortAscending
-                ? Files.OrderBy(f => f.FileName)
-                : Files.OrderByDescending(f => f.FileName),
-            "filesize" => SortAscending
-                ? Files.OrderBy(f => GetFileSizeForSorting(f.FileSize))
-                : Files.OrderByDescending(f => GetFileSizeForSorting(f.FileSize)),
-            "lastmodified" => SortAscending
-                ? Files.OrderBy(f => DateTime.TryParse(f.LastModified, out var date) ? date : DateTime.MinValue)
-                : Files.OrderByDescending(f => DateTime.TryParse(f.LastModified, out var date) ? date : DateTime.MinValue),
-            "status" => SortAscending
-                ? Files.OrderBy(f => f.Status)
-                : Files.OrderByDescending(f => f.Status),
-            "workspace" => SortAscending
-                ? Files.OrderBy(f => f.WorkspaceName)
-                : Files.OrderByDescending(f => f.WorkspaceName),
-            _ => Files
-        };
+        ApplyFileFilter();
+    }
 
-        // Clear and re-add sorted items
-        var sortedList = sortedFiles.ToList();
+    partial void OnFileSearchTextChanged(string value)
+    {
+        ApplyFileFilter();
+    }
+
+    private void ApplyFileFilter()
+    {
+        IEnumerable<FileItemViewModel> filtered = _allFiles;
+        if (!string.IsNullOrWhiteSpace(FileSearchText))
+        {
+            var term = FileSearchText.Trim();
+            filtered = filtered.Where(f =>
+                f.FileName.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                f.WorkspaceName.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                f.Status.Contains(term, StringComparison.OrdinalIgnoreCase));
+        }
+
+        filtered = ApplySort(filtered);
+
         Files.Clear();
-        foreach (var file in sortedList)
+        foreach (var file in filtered)
         {
             Files.Add(file);
         }
+
+        var selectedCount = Files.Count(f => f.IsSelected);
+        SelectedFileCount = selectedCount;
+        SelectAll = Files.Count > 0 && selectedCount == Files.Count;
+    }
+
+    private IEnumerable<FileItemViewModel> ApplySort(IEnumerable<FileItemViewModel> items)
+    {
+        return SortColumn.ToLower() switch
+        {
+            "filename" => SortAscending
+                ? items.OrderBy(f => f.FileName)
+                : items.OrderByDescending(f => f.FileName),
+            "filesize" => SortAscending
+                ? items.OrderBy(f => GetFileSizeForSorting(f.FileSize))
+                : items.OrderByDescending(f => GetFileSizeForSorting(f.FileSize)),
+            "lastmodified" => SortAscending
+                ? items.OrderBy(f => DateTime.TryParse(f.LastModified, out var date) ? date : DateTime.MinValue)
+                : items.OrderByDescending(f => DateTime.TryParse(f.LastModified, out var date) ? date : DateTime.MinValue),
+            "status" => SortAscending
+                ? items.OrderBy(f => f.Status)
+                : items.OrderByDescending(f => f.Status),
+            "workspace" => SortAscending
+                ? items.OrderBy(f => f.WorkspaceName)
+                : items.OrderByDescending(f => f.WorkspaceName),
+            _ => items
+        };
     }
 
     private long GetFileSizeForSorting(string fileSizeText)
@@ -750,6 +788,46 @@ public partial class FileConverterViewModel : ViewModelBase
 
         var numericPart = fileSizeText.Split(' ')[0].Replace(",", "");
         return long.TryParse(numericPart, out var size) ? size : 0;
+    }
+
+    private static bool IsOutputBuildMatch(string outputFilePath)
+    {
+        try
+        {
+            using var stream = File.OpenRead(outputFilePath);
+            using var doc = JsonDocument.Parse(stream);
+
+            if (!doc.RootElement.TryGetProperty("ProcessingInfo", out var info))
+            {
+                return false;
+            }
+
+            var outputVersion = info.TryGetProperty("Version", out var versionElement)
+                ? versionElement.GetString()
+                : null;
+            var outputHash = info.TryGetProperty("AssemblyHash", out var hashElement)
+                ? hashElement.GetString()
+                : null;
+
+            var currentVersion = BuildInfo.Version;
+            var currentHash = BuildInfo.AssemblyHash;
+
+            if (!string.IsNullOrWhiteSpace(currentHash) && !string.Equals(currentHash, "unknown", StringComparison.OrdinalIgnoreCase))
+            {
+                return string.Equals(outputHash, currentHash, StringComparison.OrdinalIgnoreCase);
+            }
+
+            if (!string.IsNullOrWhiteSpace(currentVersion) && !string.Equals(currentVersion, "unknown", StringComparison.OrdinalIgnoreCase))
+            {
+                return string.Equals(outputVersion, currentVersion, StringComparison.OrdinalIgnoreCase);
+            }
+
+            return false;
+        }
+        catch
+        {
+            return false;
+        }
     }
 }
 

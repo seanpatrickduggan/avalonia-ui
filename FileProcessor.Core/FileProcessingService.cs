@@ -125,7 +125,8 @@ public class FileProcessingService(IItemLogFactory? itemLogFactory = null) : IFi
                 ProcessingInfo = new
                 {
                     Processor = "FileProcessor.Core",
-                    Version = "1.0.0",
+                    Version = BuildInfo.Version,
+                    AssemblyHash = BuildInfo.AssemblyHash,
                     ProcessingTime = DateTime.UtcNow
                 }
             };
@@ -181,7 +182,8 @@ public class FileProcessingService(IItemLogFactory? itemLogFactory = null) : IFi
                 ProcessingInfo = new
                 {
                     Processor = "FileProcessor.Core",
-                    Version = "1.0.0",
+                    Version = BuildInfo.Version,
+                    AssemblyHash = BuildInfo.AssemblyHash,
                     ProcessingTime = DateTime.UtcNow
                 }
             };
@@ -190,9 +192,6 @@ public class FileProcessingService(IItemLogFactory? itemLogFactory = null) : IFi
             {
                 WriteIndented = true
             });
-
-            // Simulate processing time (synchronous)
-            Thread.Sleep(Random.Shared.Next(50, 200));
 
             // Write converted file
             File.WriteAllText(outputFilePath, json);

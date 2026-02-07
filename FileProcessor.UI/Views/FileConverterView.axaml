@@ -104,7 +104,7 @@
         </Border>
         
         <!-- Controls Header -->
-        <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,0,0,10">
+        <Grid Grid.Row="1" ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto" Margin="0,0,0,10">
           <CheckBox Grid.Column="0" 
                     IsChecked="{Binding SelectAll}"
                     Command="{Binding ToggleSelectAllCommand}"
@@ -122,8 +122,15 @@
                        FontWeight="SemiBold"
                        Foreground="{DynamicResource SystemAccentColor}"/>
           </StackPanel>
-          
-          <Button Grid.Column="2" 
+
+          <TextBox Grid.Column="2"
+                   Width="220"
+                   Watermark="Search files..."
+                   Text="{Binding FileSearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                   Margin="10,0,10,0"
+                   VerticalContentAlignment="Center"/>
+
+            <Button Grid.Column="4" 
                   Command="{Binding ResetStatusCommand}"
                   Margin="5,0">
             <StackPanel Orientation="Horizontal" Spacing="5">
@@ -132,7 +139,7 @@
             </StackPanel>
           </Button>
           
-          <Button Grid.Column="3" 
+            <Button Grid.Column="5" 
                   Command="{Binding ProcessSelectedFilesCommand}"
                   IsEnabled="{Binding !IsProcessing}"
                   Classes="accent">
