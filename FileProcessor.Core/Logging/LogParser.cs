@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Serilog;
 
 namespace FileProcessor.Core.Logging;
 
@@ -59,7 +60,10 @@ public static class LogParser
                         var rank = rankEl.GetInt32();
                         if (rank >= 0 && rank <= 5) severity = (LogSeverity)rank;
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        Log.Debug(ex, "Failed to parse severityRank from log line");
+                    }
                 }
             }
 
@@ -80,15 +84,24 @@ public static class LogParser
                         var rank = rank2.GetInt32();
                         if (rank >= 0 && rank <= 5) severity = (LogSeverity)rank;
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        Log.Debug(ex, "Failed to parse severityRank from Properties in log line");
+                    }
                 }
                 if (dataStr == null && props.TryGetProperty("data", out var data2)) dataStr = data2.GetRawText();
             }
 
             return new ItemLogEntry(ts, severity, cat, sub, msg, dataStr);
         }
-        catch
+        catch (JsonException)
         {
+            // Invalid JSON is expected for malformed log lines - no need to log
+            return null;
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "Unexpected error parsing log line");
             return null;
         }
     }

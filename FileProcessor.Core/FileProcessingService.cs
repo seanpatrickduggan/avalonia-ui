@@ -1,5 +1,6 @@
 using FileProcessor.Core.Interfaces;
 using FileProcessor.Core.Logging;
+using Serilog;
 
 namespace FileProcessor.Core;
 
@@ -84,8 +85,9 @@ public class FileProcessingService(IItemLogFactory? itemLogFactory = null) : IFi
             // Example processing: ensure file is not empty
             return !string.IsNullOrWhiteSpace(content);
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Warning(ex, "Failed to process file {FilePath}", filePath);
             return false;
         }
     }
@@ -141,8 +143,9 @@ public class FileProcessingService(IItemLogFactory? itemLogFactory = null) : IFi
 
             return true;
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Warning(ex, "Failed to convert file {InputPath} to {OutputDirectory}", inputFilePath, outputDirectory);
             return false;
         }
     }
@@ -195,12 +198,14 @@ public class FileProcessingService(IItemLogFactory? itemLogFactory = null) : IFi
 
             // Write converted file
             File.WriteAllText(outputFilePath, json);
-            try { File.SetLastWriteTimeUtc(outputFilePath, DateTime.UtcNow); } catch { }
+            try { File.SetLastWriteTimeUtc(outputFilePath, DateTime.UtcNow); }
+            catch (Exception ex) { Log.Debug(ex, "Failed to set last write time on {OutputPath}", outputFilePath); }
 
             return true;
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Warning(ex, "Failed to convert file {InputPath} to {OutputDirectory}", inputFilePath, outputDirectory);
             return false;
         }
     }

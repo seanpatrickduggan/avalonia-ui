@@ -93,7 +93,8 @@ public sealed class OperationContextService : IOperationContext
         ItemLogFactory = new ItemLogFactory(options, OperationLogger, () => _currentOperationGuid, () => _currentOperationType);
 
         // Start DB operation row
-        try { await _runtime.StartOperationAsync(_currentOperationType, name: opIdSlug); } catch { }
+        try { await _runtime.StartOperationAsync(_currentOperationType, name: opIdSlug); }
+        catch (Exception ex) { Log.Debug(ex, "Failed to start operation in database"); }
     }
 
     public async Task EndCurrentOperationAsync(string status = "succeeded")
@@ -104,10 +105,14 @@ public sealed class OperationContextService : IOperationContext
             await _runtime.EndOperationAsync(status: status);
             if (rid != 0)
             {
-                try { await _runtime.MaterializeOperationLogsAsync(rid); } catch { }
+                try { await _runtime.MaterializeOperationLogsAsync(rid); }
+                catch (Exception ex) { Log.Debug(ex, "Failed to materialize operation logs for operation {OperationId}", rid); }
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "Failed to end current operation");
+        }
         finally
         {
             // Reset to session logger after operation ends

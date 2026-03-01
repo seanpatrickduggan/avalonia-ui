@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Styling;
 using FileProcessor.UI.Interfaces;
+using Serilog;
 using System;
 
 namespace FileProcessor.UI.Services
@@ -32,11 +33,11 @@ namespace FileProcessor.UI.Services
             try
             {
                 var current = Application.Current?.RequestedThemeVariant;
-                System.Diagnostics.Debug.WriteLine($"Current theme variant: {current}");
                 return current == ThemeVariant.Dark;
             }
-            catch
+            catch (Exception ex)
             {
+                Log.Debug(ex, "Failed to check current theme, defaulting to dark");
                 return true; // Default to dark
             }
         }

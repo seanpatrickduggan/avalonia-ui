@@ -120,7 +120,10 @@ namespace LogViewer.UI.ViewModels
                 RebuildCategoryLists();
                 ApplyFilters();
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Serilog.Log.Warning(ex, "Failed to load log file {LogFilePath}", LogFilePath);
+            }
         }
 
         private void RebuildCategoryLists()
@@ -205,7 +208,7 @@ namespace LogViewer.UI.ViewModels
                 catch (Exception ex)
                 {
                     // Log DB query exceptions at debug level so standalone runs remain resilient but errors are visible
-                    try { Serilog.Log.Debug(ex, "LogViewer: DB query failed"); } catch { }
+                    Serilog.Log.Debug(ex, "LogViewer: DB query failed");
                     return;
                 }
                 if (rows.Count == 0 && !initial) return;
@@ -254,8 +257,10 @@ namespace LogViewer.UI.ViewModels
 
         public void Dispose()
         {
-            try { _timer.Stop(); } catch { }
-            try { _filterTimer.Stop(); } catch { }
+            try { _timer.Stop(); }
+            catch (Exception ex) { Serilog.Log.Debug(ex, "Failed to stop timer during dispose"); }
+            try { _filterTimer.Stop(); }
+            catch (Exception ex) { Serilog.Log.Debug(ex, "Failed to stop filter timer during dispose"); }
         }
     }
 }

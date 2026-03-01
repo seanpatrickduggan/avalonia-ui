@@ -1,5 +1,6 @@
 using FileProcessor.Core.Interfaces;
 using System.Text.Json;
+using Serilog;
 
 namespace FileProcessor.Core;
 
@@ -85,8 +86,7 @@ public class SettingsService : ISettingsService
         }
         catch (Exception ex)
         {
-            // Log error but continue with default settings
-            Console.WriteLine($"Failed to load settings: {ex.Message}");
+            Log.Warning(ex, "Failed to load settings from {Path}, using defaults", _settingsFilePath);
             _settings = new AppSettings();
         }
     }
@@ -157,8 +157,14 @@ public class SettingsService : ISettingsService
                 File.Replace(tmp, _settingsFilePath, null);
                 replaced = true;
             }
-            catch (PlatformNotSupportedException) { /* fallback below */ }
-            catch (IOException) { /* fallback below */ }
+            catch (PlatformNotSupportedException)
+            {
+                Log.Debug("File.Replace not supported on this platform, falling back to File.Copy");
+            }
+            catch (IOException ex)
+            {
+                Log.Debug(ex, "File.Replace failed, falling back to File.Copy");
+            }
 
             if (!replaced)
             {
@@ -169,7 +175,8 @@ public class SettingsService : ISettingsService
                     {
                         // Use overwrite copy to replace target
                         File.Copy(tmp, _settingsFilePath, overwrite: true);
-                        try { File.Delete(tmp); } catch { }
+                        try { File.Delete(tmp); }
+                        catch (Exception ex) { Log.Debug(ex, "Failed to delete temp file {TempFile}", tmp); }
                         break;
                     }
                     catch (IOException) when (attempt < maxCopyAttempts)
@@ -180,7 +187,15 @@ public class SettingsService : ISettingsService
             }
             // Ensure the file is readable before returning (avoid immediate reader races)
             // Try reading the file directly with a small retry/backoff so callers can open it immediately after SaveSettingsAsync
-            try { if (File.Exists(tmp)) try { File.Delete(tmp); } catch { } } catch { }
+            try
+            {
+                if (File.Exists(tmp))
+                {
+                    try { File.Delete(tmp); }
+                    catch (Exception ex) { Log.Debug(ex, "Failed to cleanup temp file {TempFile}", tmp); }
+                }
+            }
+            catch (Exception ex) { Log.Debug(ex, "Failed to check temp file existence {TempFile}", tmp); }
             const int verifyAttempts = 8;
             for (int attempt = 1; attempt <= verifyAttempts; attempt++)
             {
@@ -194,9 +209,9 @@ public class SettingsService : ISettingsService
                 {
                     await Task.Delay(25 * attempt);
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // Non-IO exceptions are ignored; final failure will be swallowed by outer catch
+                    Log.Debug(ex, "Non-IO exception during settings file verification");
                     break;
                 }
             }
@@ -205,15 +220,17 @@ public class SettingsService : ISettingsService
             {
                 if (!File.Exists(_settingsFilePath))
                 {
-                    Serilog.Log.Debug("SettingsService: settings file does not exist after SaveSettingsAsync attempts: {Path}", _settingsFilePath);
+                    Log.Debug("Settings file does not exist after SaveSettingsAsync attempts: {Path}", _settingsFilePath);
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Log.Debug(ex, "Failed to verify settings file existence at {Path}", _settingsFilePath);
+            }
         }
         catch (Exception ex)
         {
-            // Log error but don't throw - settings save failure shouldn't crash the app
-            Console.WriteLine($"Failed to save settings: {ex.Message}");
+            Log.Error(ex, "Failed to save settings to {Path}", _settingsFilePath);
         }
     }
 
@@ -246,8 +263,7 @@ public class SettingsService : ISettingsService
         }
         catch (Exception ex)
         {
-            // Log error but continue with default settings
-            Console.WriteLine($"Failed to load settings: {ex.Message}");
+            Log.Warning(ex, "Failed to load settings from {Path}, using defaults", _settingsFilePath);
             _settings = new AppSettings();
         }
     }
@@ -310,7 +326,7 @@ public class SettingsService : ISettingsService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Failed to add workspace: {ex.Message}");
+            Log.Error(ex, "Failed to add workspace at {WorkspacePath}", workspacePath);
             return false;
         }
     }
@@ -342,7 +358,7 @@ public class SettingsService : ISettingsService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Failed to set active workspace: {ex.Message}");
+            Log.Error(ex, "Failed to set active workspace to {WorkspacePath}", workspacePath);
             return false;
         }
     }
@@ -389,7 +405,7 @@ public class SettingsService : ISettingsService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Failed to remove workspace: {ex.Message}");
+            Log.Error(ex, "Failed to remove workspace at {WorkspacePath}", workspacePath);
             return false;
         }
     }

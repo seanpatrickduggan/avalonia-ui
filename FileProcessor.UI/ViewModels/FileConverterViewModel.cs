@@ -16,18 +16,20 @@ using System.Windows.Input;
 using Avalonia.Threading;
 using FileProcessor.UI.Services;
 using FileProcessor.Core.Logging;
+using Serilog;
 
 namespace FileProcessor.UI.ViewModels;
 
-public partial class FileConverterViewModel : ViewModelBase
+public partial class FileConverterViewModel : ViewModelBase, IDisposable
 {
-    private readonly FileProcessingService _fileProcessingService;
-    private readonly SettingsService _settingsService;
+    private readonly IFileProcessingService _fileProcessingService;
+    private readonly ISettingsService _settingsService;
     private readonly IOperationContext _opContext;
     private CancellationTokenSource? _checkCancellationTokenSource;
     private CancellationTokenSource? _processingCancellationTokenSource;
     private bool _isBulkSelectionUpdate;
     private List<FileItemViewModel> _allFiles = new();
+    private bool _disposed;
 
     [ObservableProperty]
     private bool _isProcessing;
@@ -100,11 +102,14 @@ public partial class FileConverterViewModel : ViewModelBase
     private readonly ConcurrentDictionary<string, LogSeverity> _highestSeverityByFile = new();
     private readonly ConcurrentBag<ItemLogResult> _conversionItemLogResults = new();
 
-    public FileConverterViewModel(IOperationContext opContext)
+    public FileConverterViewModel(
+        IOperationContext opContext,
+        IFileProcessingService fileProcessingService,
+        ISettingsService settingsService)
     {
         _opContext = opContext;
-        _fileProcessingService = new FileProcessingService(opContext.ItemLogFactory);
-        _settingsService = SettingsService.Instance;
+        _fileProcessingService = fileProcessingService;
+        _settingsService = settingsService;
 
         // Create manual command with explicit CanExecute control
         CheckFilesCommand = new RelayCommand(
@@ -624,14 +629,13 @@ public partial class FileConverterViewModel : ViewModelBase
         HasAvailableWorkspaces = AvailableWorkspaces.Count > 0;
         UpdateHasSelectedWorkspaces();
 
-        // Debug: Update progress text to show workspace count
         if (AvailableWorkspaces.Count == 0)
         {
-            ProgressText = "No workspaces configured. Please add workspaces in Settings first.";
+            ProgressText = "No workspaces configured. Please add workspaces in Settings.";
         }
         else
         {
-            ProgressText = $"Loaded {AvailableWorkspaces.Count} workspaces";
+            ProgressText = "Ready";
         }
     }
 
@@ -640,23 +644,13 @@ public partial class FileConverterViewModel : ViewModelBase
         if (e.PropertyName == nameof(WorkspaceSelectionViewModel.IsSelected))
         {
             UpdateHasSelectedWorkspaces();
-
-            // Debug: Show which workspace was toggled
-            if (sender is WorkspaceSelectionViewModel workspace)
-            {
-                ProgressText = $"Workspace '{workspace.Workspace.Name}' {(workspace.IsSelected ? "selected" : "deselected")}. HasSelectedWorkspaces: {HasSelectedWorkspaces}";
-            }
         }
     }
 
     private void UpdateHasSelectedWorkspaces()
     {
         var selectedCount = AvailableWorkspaces.Count(w => w.IsSelected);
-        var newValue = selectedCount > 0;
-
-        HasSelectedWorkspaces = newValue;
-
-        ProgressText = $"Button should now be {(newValue ? "ENABLED" : "DISABLED")} - HasSelectedWorkspaces = {HasSelectedWorkspaces}";
+        HasSelectedWorkspaces = selectedCount > 0;
     }
 
     // This method will be called automatically when HasSelectedWorkspaces changes
@@ -682,9 +676,7 @@ public partial class FileConverterViewModel : ViewModelBase
     [RelayCommand]
     private void ToggleWorkspaceSelection(WorkspaceSelectionViewModel workspace)
     {
-        // This will be called when a workspace checkbox is clicked
         UpdateHasSelectedWorkspaces();
-        ProgressText = $"Workspace '{workspace.Workspace.Name}' {(workspace.IsSelected ? "selected" : "deselected")}. HasSelectedWorkspaces: {HasSelectedWorkspaces}";
     }
 
     [RelayCommand]
@@ -824,10 +816,49 @@ public partial class FileConverterViewModel : ViewModelBase
 
             return false;
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Debug(ex, "Failed to check build match for {OutputFile}", outputFilePath);
             return false;
         }
+    }
+
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (_disposed)
+            return;
+
+        if (disposing)
+        {
+            // Unsubscribe from settings service events
+            _settingsService.WorkspaceChanged -= OnWorkspaceChanged;
+
+            // Unsubscribe from file item events
+            foreach (var file in _allFiles)
+            {
+                file.PropertyChanged -= OnFileSelectionChanged;
+            }
+
+            // Unsubscribe from workspace selection events
+            foreach (var workspace in AvailableWorkspaces)
+            {
+                workspace.PropertyChanged -= OnWorkspaceSelectionChanged;
+            }
+
+            // Cancel any pending operations
+            _checkCancellationTokenSource?.Cancel();
+            _checkCancellationTokenSource?.Dispose();
+            _processingCancellationTokenSource?.Cancel();
+            _processingCancellationTokenSource?.Dispose();
+        }
+
+        _disposed = true;
     }
 }
 

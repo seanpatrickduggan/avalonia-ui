@@ -4,6 +4,7 @@ using System.Threading.Channels;
 using FileProcessor.Core.Interfaces;
 using FileProcessor.Core.Workspace;
 using FileProcessor.Core.Abstractions; // IFileSystem only
+using Serilog;
 
 namespace FileProcessor.Infrastructure.Workspace;
 
@@ -106,7 +107,11 @@ public sealed class WorkspaceRuntime : IWorkspaceRuntime, ILogAppender, IDisposa
                 System.Text.Json.JsonElement? data = null;
                 if (!string.IsNullOrWhiteSpace(row.DataJson))
                 {
-                    try { data = JsonDocument.Parse(row.DataJson!).RootElement; } catch { }
+                    try { data = JsonDocument.Parse(row.DataJson!).RootElement; }
+                    catch (JsonException)
+                    {
+                        // Invalid JSON in data field - skip silently as this is expected for malformed data
+                    }
                 }
                 var line = new MaterializedLog
                 {
@@ -151,7 +156,11 @@ public sealed class WorkspaceRuntime : IWorkspaceRuntime, ILogAppender, IDisposa
                 System.Text.Json.JsonElement? data = null;
                 if (!string.IsNullOrWhiteSpace(row.DataJson))
                 {
-                    try { data = JsonDocument.Parse(row.DataJson!).RootElement; } catch { }
+                    try { data = JsonDocument.Parse(row.DataJson!).RootElement; }
+                    catch (JsonException)
+                    {
+                        // Invalid JSON in data field - skip silently as this is expected for malformed data
+                    }
                 }
                 var line = new MaterializedLog
                 {
@@ -178,12 +187,13 @@ public sealed class WorkspaceRuntime : IWorkspaceRuntime, ILogAppender, IDisposa
     {
         if (_writer is not null)
         {
-            try { await _writer.FlushAsync(ct); } catch { }
+            try { await _writer.FlushAsync(ct); }
+            catch (Exception ex) { Log.Debug(ex, "Failed to flush log writer during shutdown"); }
         }
         if (_sessionId != 0)
         {
             try { await _db.EndSessionAsync(_sessionId, ct); }
-            catch { }
+            catch (Exception ex) { Log.Debug(ex, "Failed to end session {SessionId} during shutdown", _sessionId); }
             finally { _sessionId = 0; _currentOperationId = 0; }
         }
     }
@@ -206,7 +216,8 @@ public sealed class WorkspaceRuntime : IWorkspaceRuntime, ILogAppender, IDisposa
     {
         if (_writer != null)
         {
-            try { await _writer.FlushAsync(ct); } catch { }
+            try { await _writer.FlushAsync(ct); }
+            catch (Exception ex) { Log.Debug(ex, "Failed to flush log writer"); }
         }
         else
         {
@@ -221,14 +232,16 @@ public sealed class WorkspaceRuntime : IWorkspaceRuntime, ILogAppender, IDisposa
     {
         while (_pending.TryDequeue(out var w))
         {
-            try { await _db.AppendLogAsync(w, ct); } catch { }
+            try { await _db.AppendLogAsync(w, ct); }
+            catch (Exception ex) { Log.Debug(ex, "Failed to append pending log entry"); }
             if (ct.IsCancellationRequested) break;
         }
     }
 
     private async Task SafeAppendAsync(LogWrite write, CancellationToken ct)
     {
-        try { await _db.AppendLogAsync(write, ct); } catch { }
+        try { await _db.AppendLogAsync(write, ct); }
+        catch (Exception ex) { Log.Debug(ex, "Failed to append log entry"); }
     }
 
     public void Dispose()
@@ -261,20 +274,35 @@ public sealed class WorkspaceRuntime : IWorkspaceRuntime, ILogAppender, IDisposa
             {
                 SingleReader = true,
                 SingleWriter = false,
-                FullMode = BoundedChannelFullMode.DropOldest
+                FullMode = BoundedChannelFullMode.Wait
             });
             _consumer = Task.Run(ConsumeAsync);
         }
 
         public async Task AppendAsync(LogWrite write, CancellationToken ct = default)
         {
-            try { await _channel.Writer.WriteAsync(write, ct); } catch { }
+            // Try non-blocking write first; if buffer is full, log warning and wait
+            if (_channel.Writer.TryWrite(write))
+                return;
+
+            Log.Warning("Log channel buffer full, waiting for space. Consider investigating high log volume.");
+
+            try { await _channel.Writer.WriteAsync(write, ct); }
+            catch (ChannelClosedException)
+            {
+                // Channel was closed - expected during shutdown
+            }
+            catch (Exception ex)
+            {
+                Log.Debug(ex, "Failed to write log entry to channel");
+            }
         }
 
         public async Task FlushAsync(CancellationToken ct = default)
         {
             _channel.Writer.Complete();
-            try { await _consumer; } catch { }
+            try { await _consumer; }
+            catch (Exception ex) { Log.Debug(ex, "Log consumer task failed during flush"); }
         }
 
         private async Task ConsumeAsync()
@@ -283,10 +311,14 @@ public sealed class WorkspaceRuntime : IWorkspaceRuntime, ILogAppender, IDisposa
             {
                 await foreach (var w in _channel.Reader.ReadAllAsync())
                 {
-                    try { await _db.AppendLogAsync(w); } catch { }
+                    try { await _db.AppendLogAsync(w); }
+                    catch (Exception ex) { Log.Debug(ex, "Failed to append log entry from channel"); }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Log.Debug(ex, "Log channel consumer loop failed");
+            }
         }
     }
 }

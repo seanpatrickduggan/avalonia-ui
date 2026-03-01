@@ -1,4 +1,5 @@
 using System;
+using FileProcessor.Core;
 using FileProcessor.Core.Abstractions;
 using FileProcessor.Core.App;
 using FileProcessor.Core.Interfaces;
@@ -39,6 +40,8 @@ public static class CompositionRoot
         services.AddSingleton<IApplicationHost, ApplicationHost>();
 
         services.AddSingleton<IOperationContext, OperationContextService>();
+        services.AddSingleton<IFileProcessingService>(sp =>
+            new FileProcessingService(sp.GetRequiredService<IOperationContext>().ItemLogFactory));
         services.AddSingleton<ILogReader, SqliteLogReader>();
         services.AddSingleton<ILogReaderFactory>(sp => new LogReaderFactory(sp));
 

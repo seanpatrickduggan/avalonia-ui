@@ -1,4 +1,5 @@
 using FileProcessor.Core.Interfaces;
+using Serilog;
 
 namespace FileProcessor.Core;
 
@@ -69,8 +70,9 @@ public class FileGenerationService : IFileGenerationService
 
             return generatedCount;
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Error(ex, "Failed to generate test files in {OutputDirectory}", outputDirectory);
             return 0;
         }
     }
@@ -82,8 +84,9 @@ public class FileGenerationService : IFileGenerationService
             await File.WriteAllTextAsync(filePath, content);
             return true;
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Warning(ex, "Failed to generate file {FilePath}", filePath);
             return false;
         }
     }
